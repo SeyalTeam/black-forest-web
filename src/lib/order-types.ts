@@ -35,3 +35,11 @@ export type HomePageData = {
   favoriteCategories: CategoryCard[];
   ruleSections: RuleSection[];
 };
+
+export type BranchLookupResult = {
+  matched: boolean;
+  branchId: string;
+  branchName: string;
+  radiusMeters: number | null;
+  distanceMeters: number | null;
+};

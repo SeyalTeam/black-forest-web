@@ -1,4 +1,10 @@
-import type { CategoryCard, HomePageData, Product, RuleSection } from "@/lib/order-types";
+import type {
+  BranchLookupResult,
+  CategoryCard,
+  HomePageData,
+  Product,
+  RuleSection,
+} from "@/lib/order-types";
 
 const API_BASE = "https://blackforest.vseyal.com/api";
 const DEFAULT_BRANCH_ID =
@@ -292,6 +298,26 @@ async function fetchJson(path: string) {
   return response.json();
 }
 
+function distanceInMeters(
+  latitude1: number,
+  longitude1: number,
+  latitude2: number,
+  longitude2: number,
+) {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadius = 6_371_000;
+  const dLatitude = toRadians(latitude2 - latitude1);
+  const dLongitude = toRadians(longitude2 - longitude1);
+  const a =
+    Math.sin(dLatitude / 2) * Math.sin(dLatitude / 2) +
+    Math.cos(toRadians(latitude1)) *
+      Math.cos(toRadians(latitude2)) *
+      Math.sin(dLongitude / 2) *
+      Math.sin(dLongitude / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadius * c;
+}
+
 async function fetchBranchName(branchId: string) {
   try {
     const branch = await fetchJson(`/branches/${branchId}?depth=1`);
@@ -538,6 +564,59 @@ async function fetchFavoriteCategories(widgetSettings: unknown, branchId: string
   return {
     title: titles.length > 0 ? titles.join(" / ") : "Favorite Categories",
     categories: await hydrateCategories(categories),
+  };
+}
+
+export async function findBranchByCoordinates(
+  latitude: number,
+  longitude: number,
+): Promise<BranchLookupResult> {
+  const settings = await fetchJson("/globals/branch-geo-settings");
+  const locations = toArray(toMap(settings)?.locations);
+
+  for (const rawLocation of locations) {
+    const location = toMap(rawLocation);
+    if (!location) continue;
+
+    const branch = toMap(location.branch);
+    const branchId = extractRefId(location.branch);
+    const branchName = readText(branch?.name, location.branchName, location.name);
+    const locationLatitude =
+      typeof location.latitude === "number" ? location.latitude : toNumber(location.latitude);
+    const locationLongitude =
+      typeof location.longitude === "number"
+        ? location.longitude
+        : toNumber(location.longitude);
+    const radiusMeters =
+      typeof location.radius === "number" ? location.radius : toNumber(location.radius) || 100;
+
+    if (!branchId || !branchName) continue;
+    if (!Number.isFinite(locationLatitude) || !Number.isFinite(locationLongitude)) continue;
+
+    const distanceMeters = distanceInMeters(
+      latitude,
+      longitude,
+      locationLatitude,
+      locationLongitude,
+    );
+
+    if (distanceMeters <= radiusMeters) {
+      return {
+        matched: true,
+        branchId,
+        branchName,
+        radiusMeters,
+        distanceMeters: Math.round(distanceMeters),
+      };
+    }
+  }
+
+  return {
+    matched: false,
+    branchId: "",
+    branchName: "",
+    radiusMeters: null,
+    distanceMeters: null,
   };
 }
 

@@ -1,10 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { productAvatarLabel, useOrder } from "@/components/order-provider";
-import type { CategoryCard, HomePageData, Product, RuleSection } from "@/lib/order-types";
+import type {
+  BranchLookupResult,
+  CategoryCard,
+  HomePageData,
+  Product,
+  RuleSection,
+} from "@/lib/order-types";
 import styles from "./page.module.css";
+
+const SESSION_BRANCH_ID_KEY = "blackforest-order-web-branch-id";
+const SESSION_BRANCH_NAME_KEY = "blackforest-order-web-branch-name";
+
+type LocationStatus =
+  | "checking"
+  | "prompt"
+  | "locating"
+  | "resolved"
+  | "denied"
+  | "unsupported"
+  | "skipped";
 
 function VegIcon({ isVeg }: { isVeg: boolean }) {
   return (
@@ -73,13 +91,186 @@ export default function HomePage() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [branchId, setBranchId] = useState<string | null>(null);
+  const [branchNameOverride, setBranchNameOverride] = useState("");
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>("checking");
+  const [locationMessage, setLocationMessage] = useState("");
+
+  const fallbackToDefaultBranch = useCallback(
+    (message: string, status: LocationStatus) => {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(SESSION_BRANCH_ID_KEY);
+        window.sessionStorage.removeItem(SESSION_BRANCH_NAME_KEY);
+      }
+      setBranchNameOverride("");
+      setBranchId("");
+      setLocationStatus(status);
+      setLocationMessage(message);
+    },
+    [],
+  );
+
+  const requestLocationBranch = useCallback(() => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      fallbackToDefaultBranch(
+        "Location is not supported on this browser. Showing default branch.",
+        "unsupported",
+      );
+      return;
+    }
+
+    setLocationStatus("locating");
+    setLocationMessage("Finding your branch from your current location...");
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const response = await fetch(
+            `/api/branch-from-location?lat=${position.coords.latitude}&lng=${position.coords.longitude}`,
+            { cache: "no-store" },
+          );
+          const payload = (await response.json()) as
+            | BranchLookupResult
+            | { message?: string };
+
+          if (!response.ok) {
+            throw new Error(
+              "message" in payload && payload.message
+                ? payload.message
+                : "Unable to resolve branch from location",
+            );
+          }
+
+          if (!("matched" in payload) || !payload.matched || !payload.branchId) {
+            fallbackToDefaultBranch(
+              "No branch matched your current location. Showing default branch.",
+              "skipped",
+            );
+            return;
+          }
+
+          window.sessionStorage.setItem(SESSION_BRANCH_ID_KEY, payload.branchId);
+          window.sessionStorage.setItem(SESSION_BRANCH_NAME_KEY, payload.branchName);
+          setBranchId(payload.branchId);
+          setBranchNameOverride(payload.branchName);
+          setLocationStatus("resolved");
+          setLocationMessage(
+            `${payload.branchName} branch matched from Branch Geo Settings.`,
+          );
+        } catch (error) {
+          fallbackToDefaultBranch(
+            error instanceof Error
+              ? `${error.message}. Showing default branch.`
+              : "Unable to resolve branch from location. Showing default branch.",
+            "skipped",
+          );
+        }
+      },
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          fallbackToDefaultBranch(
+            "Location permission was denied. Showing default branch.",
+            "denied",
+          );
+          return;
+        }
+
+        fallbackToDefaultBranch(
+          "Unable to read your current location. Showing default branch.",
+          "skipped",
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      },
+    );
+  }, [fallbackToDefaultBranch]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const nextBranchId =
-      new URLSearchParams(window.location.search).get("branchId")?.trim() ?? "";
-    setBranchId(nextBranchId);
-  }, []);
+    let isDisposed = false;
+
+    const initializeBranch = async () => {
+      const nextBranchId =
+        new URLSearchParams(window.location.search).get("branchId")?.trim() ?? "";
+      if (nextBranchId) {
+        if (isDisposed) return;
+        setBranchId(nextBranchId);
+        setLocationStatus("resolved");
+        setLocationMessage("Branch selected from the page link.");
+        return;
+      }
+
+      const storedBranchId = window.sessionStorage
+        .getItem(SESSION_BRANCH_ID_KEY)
+        ?.trim();
+      const storedBranchName = window.sessionStorage
+        .getItem(SESSION_BRANCH_NAME_KEY)
+        ?.trim();
+      if (storedBranchId) {
+        if (isDisposed) return;
+        setBranchId(storedBranchId);
+        setBranchNameOverride(storedBranchName ?? "");
+        setLocationStatus("resolved");
+        if (storedBranchName) {
+          setLocationMessage(`${storedBranchName} branch restored for this session.`);
+        }
+        return;
+      }
+
+      if (!("geolocation" in navigator)) {
+        if (isDisposed) return;
+        fallbackToDefaultBranch(
+          "Location is not supported on this browser. Showing default branch.",
+          "unsupported",
+        );
+        return;
+      }
+
+      if (
+        typeof navigator.permissions === "undefined" ||
+        typeof navigator.permissions.query !== "function"
+      ) {
+        if (isDisposed) return;
+        setLocationStatus("prompt");
+        setLocationMessage("Enable location to find the nearest branch automatically.");
+        return;
+      }
+
+      try {
+        const permission = await navigator.permissions.query({
+          name: "geolocation" as PermissionName,
+        });
+
+        if (isDisposed) return;
+        if (permission.state === "granted") {
+          requestLocationBranch();
+          return;
+        }
+
+        if (permission.state === "prompt") {
+          setLocationStatus("prompt");
+          setLocationMessage("Enable location to find the nearest branch automatically.");
+          return;
+        }
+
+        fallbackToDefaultBranch(
+          "Location permission is blocked. Showing default branch.",
+          "denied",
+        );
+      } catch {
+        if (isDisposed) return;
+        setLocationStatus("prompt");
+        setLocationMessage("Enable location to find the nearest branch automatically.");
+      }
+    };
+
+    void initializeBranch();
+    return () => {
+      isDisposed = true;
+    };
+  }, [fallbackToDefaultBranch, requestLocationBranch]);
 
   useEffect(() => {
     if (branchId === null) return;
@@ -204,20 +395,56 @@ export default function HomePage() {
     }
   }, [activeCategory, availableCategories]);
 
+  const activeBranchName = homeData?.branchName || branchNameOverride || "VSeyal";
+
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
         <section className={styles.topSection}>
           <div className={styles.topBar}>
             <div className={styles.brandLockup}>
-              <span className={styles.brandEyebrow}>{homeData?.branchName ?? "VSeyal"} branch</span>
-              <h1>{homeData?.branchName ?? "VSeyal"}</h1>
+              <span className={styles.brandEyebrow}>{activeBranchName} branch</span>
+              <h1>{activeBranchName}</h1>
             </div>
 
             <div className={styles.profileChip}>
               <span>T12</span>
             </div>
           </div>
+
+          {locationStatus === "prompt" ? (
+            <div className={styles.locationCard}>
+              <div>
+                <strong>Enable location</strong>
+                <p>{locationMessage || "Allow location to detect the nearest branch."}</p>
+              </div>
+              <div className={styles.locationActions}>
+                <button
+                  type="button"
+                  className={styles.locationPrimaryButton}
+                  onClick={requestLocationBranch}
+                >
+                  Enable
+                </button>
+                <button
+                  type="button"
+                  className={styles.locationSecondaryButton}
+                  onClick={() =>
+                    fallbackToDefaultBranch("Showing default branch menu.", "skipped")
+                  }
+                >
+                  Skip
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {locationStatus !== "prompt" && locationMessage ? (
+            <div className={styles.locationStatus}>
+              <strong>Location</strong>
+              <span>{locationMessage}</span>
+            </div>
+          ) : null}
 
           <div className={styles.offerStage}>
             <div className={styles.offerCopy}>
