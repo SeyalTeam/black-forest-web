@@ -570,6 +570,7 @@ async function fetchFavoriteCategories(widgetSettings: unknown, branchId: string
 export async function findBranchByCoordinates(
   latitude: number,
   longitude: number,
+  requiredBranchId?: string,
 ): Promise<BranchLookupResult> {
   const settings = await fetchJson("/globals/branch-geo-settings");
   const locations = toArray(toMap(settings)?.locations);
@@ -591,6 +592,7 @@ export async function findBranchByCoordinates(
       typeof location.radius === "number" ? location.radius : toNumber(location.radius) || 100;
 
     if (!branchId || !branchName) continue;
+    if (requiredBranchId && branchId !== requiredBranchId) continue;
     if (!Number.isFinite(locationLatitude) || !Number.isFinite(locationLongitude)) continue;
 
     const distanceMeters = distanceInMeters(

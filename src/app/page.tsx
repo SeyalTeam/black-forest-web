@@ -20,6 +20,7 @@ type LocationStatus =
   | "prompt"
   | "locating"
   | "resolved"
+  | "blocked"
   | "denied"
   | "unsupported"
   | "skipped";
@@ -92,40 +93,50 @@ export default function HomePage() {
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [branchNameOverride, setBranchNameOverride] = useState("");
+  const [requestedBranchId, setRequestedBranchId] = useState("");
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("checking");
   const [locationMessage, setLocationMessage] = useState("");
 
-  const fallbackToDefaultBranch = useCallback(
+  const blockWebsite = useCallback(
     (message: string, status: LocationStatus) => {
       if (typeof window !== "undefined") {
         window.sessionStorage.removeItem(SESSION_BRANCH_ID_KEY);
         window.sessionStorage.removeItem(SESSION_BRANCH_NAME_KEY);
       }
       setBranchNameOverride("");
-      setBranchId("");
+      setBranchId(null);
       setLocationStatus(status);
       setLocationMessage(message);
     },
     [],
   );
 
-  const requestLocationBranch = useCallback(() => {
+  const requestLocationBranch = useCallback((branchIdFromQuery?: string) => {
     if (typeof window === "undefined" || !("geolocation" in navigator)) {
-      fallbackToDefaultBranch(
-        "Location is not supported on this browser. Showing default branch.",
+      blockWebsite(
+        "Location is required on this device to open the website.",
         "unsupported",
       );
       return;
     }
 
     setLocationStatus("locating");
-    setLocationMessage("Finding your branch from your current location...");
+    setLocationMessage("Checking whether you are inside the allowed branch radius...");
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
+          const query = new URLSearchParams({
+            lat: String(position.coords.latitude),
+            lng: String(position.coords.longitude),
+          });
+          const targetBranchId = branchIdFromQuery?.trim() ?? "";
+          if (targetBranchId) {
+            query.set("branchId", targetBranchId);
+          }
+
           const response = await fetch(
-            `/api/branch-from-location?lat=${position.coords.latitude}&lng=${position.coords.longitude}`,
+            `/api/branch-from-location?${query.toString()}`,
             { cache: "no-store" },
           );
           const payload = (await response.json()) as
@@ -141,9 +152,9 @@ export default function HomePage() {
           }
 
           if (!("matched" in payload) || !payload.matched || !payload.branchId) {
-            fallbackToDefaultBranch(
-              "No branch matched your current location. Showing default branch.",
-              "skipped",
+            blockWebsite(
+              "You are outside the allowed branch radius. Website access is blocked.",
+              "blocked",
             );
             return;
           }
@@ -157,26 +168,26 @@ export default function HomePage() {
             `${payload.branchName} branch matched from Branch Geo Settings.`,
           );
         } catch (error) {
-          fallbackToDefaultBranch(
+          blockWebsite(
             error instanceof Error
-              ? `${error.message}. Showing default branch.`
-              : "Unable to resolve branch from location. Showing default branch.",
-            "skipped",
+              ? error.message
+              : "Unable to verify your location against Branch Geo Settings.",
+            "blocked",
           );
         }
       },
       (error) => {
         if (error.code === error.PERMISSION_DENIED) {
-          fallbackToDefaultBranch(
-            "Location permission was denied. Showing default branch.",
+          blockWebsite(
+            "Location permission was denied. Enable location to open the website.",
             "denied",
           );
           return;
         }
 
-        fallbackToDefaultBranch(
-          "Unable to read your current location. Showing default branch.",
-          "skipped",
+        blockWebsite(
+          "Unable to read your current location. Location verification failed.",
+          "blocked",
         );
       },
       {
@@ -185,7 +196,7 @@ export default function HomePage() {
         maximumAge: 60000,
       },
     );
-  }, [fallbackToDefaultBranch]);
+  }, [blockWebsite]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -194,35 +205,12 @@ export default function HomePage() {
     const initializeBranch = async () => {
       const nextBranchId =
         new URLSearchParams(window.location.search).get("branchId")?.trim() ?? "";
-      if (nextBranchId) {
-        if (isDisposed) return;
-        setBranchId(nextBranchId);
-        setLocationStatus("resolved");
-        setLocationMessage("Branch selected from the page link.");
-        return;
-      }
-
-      const storedBranchId = window.sessionStorage
-        .getItem(SESSION_BRANCH_ID_KEY)
-        ?.trim();
-      const storedBranchName = window.sessionStorage
-        .getItem(SESSION_BRANCH_NAME_KEY)
-        ?.trim();
-      if (storedBranchId) {
-        if (isDisposed) return;
-        setBranchId(storedBranchId);
-        setBranchNameOverride(storedBranchName ?? "");
-        setLocationStatus("resolved");
-        if (storedBranchName) {
-          setLocationMessage(`${storedBranchName} branch restored for this session.`);
-        }
-        return;
-      }
+      if (isDisposed) return;
+      setRequestedBranchId(nextBranchId);
 
       if (!("geolocation" in navigator)) {
-        if (isDisposed) return;
-        fallbackToDefaultBranch(
-          "Location is not supported on this browser. Showing default branch.",
+        blockWebsite(
+          "Location is required on this browser to open the website.",
           "unsupported",
         );
         return;
@@ -234,7 +222,7 @@ export default function HomePage() {
       ) {
         if (isDisposed) return;
         setLocationStatus("prompt");
-        setLocationMessage("Enable location to find the nearest branch automatically.");
+        setLocationMessage("Enable location to verify you are inside the branch radius.");
         return;
       }
 
@@ -245,24 +233,24 @@ export default function HomePage() {
 
         if (isDisposed) return;
         if (permission.state === "granted") {
-          requestLocationBranch();
+          requestLocationBranch(nextBranchId);
           return;
         }
 
         if (permission.state === "prompt") {
           setLocationStatus("prompt");
-          setLocationMessage("Enable location to find the nearest branch automatically.");
+          setLocationMessage("Enable location to verify you are inside the branch radius.");
           return;
         }
 
-        fallbackToDefaultBranch(
-          "Location permission is blocked. Showing default branch.",
+        blockWebsite(
+          "Location permission is blocked. Enable location to open the website.",
           "denied",
         );
       } catch {
         if (isDisposed) return;
         setLocationStatus("prompt");
-        setLocationMessage("Enable location to find the nearest branch automatically.");
+        setLocationMessage("Enable location to verify you are inside the branch radius.");
       }
     };
 
@@ -270,7 +258,7 @@ export default function HomePage() {
     return () => {
       isDisposed = true;
     };
-  }, [fallbackToDefaultBranch, requestLocationBranch]);
+  }, [blockWebsite, requestLocationBranch]);
 
   useEffect(() => {
     if (branchId === null) return;
@@ -396,6 +384,7 @@ export default function HomePage() {
   }, [activeCategory, availableCategories]);
 
   const activeBranchName = homeData?.branchName || branchNameOverride || "VSeyal";
+  const accessGranted = locationStatus === "resolved" && Boolean(branchId);
 
   return (
     <main className={styles.page}>
@@ -416,24 +405,15 @@ export default function HomePage() {
             <div className={styles.locationCard}>
               <div>
                 <strong>Enable location</strong>
-                <p>{locationMessage || "Allow location to detect the nearest branch."}</p>
+                <p>{locationMessage || "Allow location to verify branch access."}</p>
               </div>
               <div className={styles.locationActions}>
                 <button
                   type="button"
                   className={styles.locationPrimaryButton}
-                  onClick={requestLocationBranch}
+                  onClick={() => requestLocationBranch(requestedBranchId)}
                 >
                   Enable
-                </button>
-                <button
-                  type="button"
-                  className={styles.locationSecondaryButton}
-                  onClick={() =>
-                    fallbackToDefaultBranch("Showing default branch menu.", "skipped")
-                  }
-                >
-                  Skip
                 </button>
               </div>
             </div>
@@ -446,30 +426,51 @@ export default function HomePage() {
             </div>
           ) : null}
 
-          <div className={styles.offerStage}>
-            <div className={styles.offerCopy}>
-              <span className={styles.liveChip}>Live table ordering</span>
-              <h2>Scan. Pick. Send to kitchen.</h2>
+          {!accessGranted ? (
+            <div className={styles.accessCard}>
+              <strong>Website locked</strong>
+              <h2>Stay inside the branch radius to continue.</h2>
               <p>
-                Same customer flow as the app homepage, but adjusted for website width and
-                responsive product grids.
+                This website opens only when your current location matches the radius configured
+                in Branch Geo Settings.
               </p>
+              <button
+                type="button"
+                className={styles.locationPrimaryButton}
+                onClick={() => requestLocationBranch(requestedBranchId)}
+              >
+                Retry location check
+              </button>
             </div>
+          ) : (
+            <>
+              <div className={styles.offerStage}>
+                <div className={styles.offerCopy}>
+                  <span className={styles.liveChip}>Live table ordering</span>
+                  <h2>Scan. Pick. Send to kitchen.</h2>
+                  <p>
+                    Same customer flow as the app homepage, but adjusted for website width and
+                    responsive product grids.
+                  </p>
+                </div>
 
-            <div className={styles.offerPanel}>
-              <strong>Today&apos;s branch box</strong>
-              <span>2 combo offers active</span>
-              <small>Shared Tables enabled</small>
-            </div>
-          </div>
+                <div className={styles.offerPanel}>
+                  <strong>Today&apos;s branch box</strong>
+                  <span>2 combo offers active</span>
+                  <small>Shared Tables enabled</small>
+                </div>
+              </div>
 
-          <button type="button" className={styles.searchBar}>
-            <span className={styles.searchIcon}>⌕</span>
-            <span>Search for &quot;Pizza&quot;</span>
-            <span className={styles.searchMic}>◉</span>
-          </button>
+              <button type="button" className={styles.searchBar}>
+                <span className={styles.searchIcon}>⌕</span>
+                <span>Search for &quot;Pizza&quot;</span>
+                <span className={styles.searchMic}>◉</span>
+              </button>
+            </>
+          )}
         </section>
 
+        {accessGranted ? (
         <section className={styles.categoryStrip}>
           <button
             type="button"
@@ -510,7 +511,9 @@ export default function HomePage() {
             </button>
           ))}
         </section>
+        ) : null}
 
+        {accessGranted ? (
         <section className={styles.boxSection}>
           <div className={styles.sectionHeader}>
             <h3>Fast Movement</h3>
@@ -538,26 +541,28 @@ export default function HomePage() {
             ))}
           </div>
         </section>
+        ) : null}
 
-        {isLoading ? (
+        {accessGranted && isLoading ? (
           <section className={styles.boxSection}>
             <div className={styles.statusCard}>Loading homepage data...</div>
           </section>
         ) : null}
 
-        {!isLoading && errorMessage ? (
+        {accessGranted && !isLoading && errorMessage ? (
           <section className={styles.boxSection}>
             <div className={styles.statusCard}>{errorMessage}</div>
           </section>
         ) : null}
 
-        {!isLoading && !errorMessage && filteredSections.length === 0 ? (
+        {accessGranted && !isLoading && !errorMessage && filteredSections.length === 0 ? (
           <section className={styles.boxSection}>
             <div className={styles.statusCard}>No recommended products available for this branch.</div>
           </section>
         ) : null}
 
-        {!isLoading &&
+        {accessGranted &&
+          !isLoading &&
           !errorMessage &&
           filteredSections.map((section) => (
             <section key={section.title} className={styles.boxSection}>
@@ -641,6 +646,7 @@ export default function HomePage() {
             </section>
           ))}
 
+        {accessGranted ? (
         <section className={styles.favoriteSection}>
           <div className={styles.sectionHeader}>
             <h3>{homeData?.favoriteCategoriesTitle ?? "Favorite Categories"}</h3>
@@ -670,8 +676,10 @@ export default function HomePage() {
             ))}
           </div>
         </section>
+        ) : null}
       </section>
 
+      {accessGranted ? (
       <div className={styles.cartBar}>
         <div className={styles.cartInfo}>
           <div className={styles.stack}>
@@ -699,6 +707,7 @@ export default function HomePage() {
           View Cart
         </Link>
       </div>
+      ) : null}
     </main>
   );
 }

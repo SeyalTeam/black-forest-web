@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import { productAvatarLabel, useOrder } from "@/components/order-provider";
 import styles from "./page.module.css";
 
+const SESSION_BRANCH_ID_KEY = "blackforest-order-web-branch-id";
+
 function VegIcon({ isVeg }: { isVeg: boolean }) {
   return (
     <span
@@ -27,12 +29,58 @@ export default function KotPage() {
     updateCookingRequest,
   } = useOrder();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [hasAccess] = useState<boolean | null>(() => {
+    if (typeof window === "undefined") return null;
+    return Boolean(window.sessionStorage.getItem(SESSION_BRANCH_ID_KEY)?.trim());
+  });
 
   const summaryLabel = totalItems === 1 ? "1 item added" : `${totalItems} items added`;
   const previewItems = useMemo(
     () => cartItems.slice(Math.max(0, cartItems.length - 2)),
     [cartItems],
   );
+
+  if (hasAccess === false) {
+    return (
+      <main className={styles.page}>
+        <section className={styles.shell}>
+          <header className={styles.header}>
+            <div>
+              <p className={styles.eyebrow}>Table order</p>
+              <h1 className={styles.title}>Access blocked</h1>
+            </div>
+            <Link href="/" className={styles.backLink}>
+              Back to menu
+            </Link>
+          </header>
+
+          <section className={styles.orderCard}>
+            <div className={styles.cardHeader}>
+              <h2>Location verification required</h2>
+            </div>
+            <p>
+              This page opens only after the homepage verifies your location against Branch Geo
+              Settings radius.
+            </p>
+          </section>
+        </section>
+      </main>
+    );
+  }
+
+  if (hasAccess === null) {
+    return (
+      <main className={styles.page}>
+        <section className={styles.shell}>
+          <section className={styles.orderCard}>
+            <div className={styles.cardHeader}>
+              <h2>Checking access...</h2>
+            </div>
+          </section>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className={styles.page}>
