@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { productAvatarLabel, useOrder } from "@/components/order-provider";
 import type {
   BranchLookupResult,
@@ -33,6 +33,54 @@ function VegIcon({ isVeg }: { isVeg: boolean }) {
     >
       <span />
     </span>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.inlineIcon}>
+      <path
+        d="M12 21c-.4 0-.8-.2-1-.5C7 15.4 5 12.6 5 9.5 5 5.9 8 3 12 3s7 2.9 7 6.5c0 3.1-2 5.9-6 11-.2.3-.6.5-1 .5Z"
+        fill="currentColor"
+      />
+      <circle cx="12" cy="9.5" r="2.8" fill="#d97937" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.inlineIconLarge}>
+      <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2.2" />
+      <path d="M16.2 16.2 21 21" fill="none" stroke="currentColor" strokeWidth="2.2" />
+    </svg>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.inlineIconLarge}>
+      <rect x="9" y="3" width="6" height="12" rx="3" fill="currentColor" />
+      <path
+        d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ProfileIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.profileIcon}>
+      <circle cx="12" cy="8.2" r="4.2" fill="#d58a56" />
+      <path
+        d="M5 20c1.4-3.9 4-5.8 7-5.8s5.6 1.9 7 5.8"
+        fill="#d58a56"
+      />
+    </svg>
   );
 }
 
@@ -96,6 +144,7 @@ export default function HomePage() {
   const [requestedBranchId, setRequestedBranchId] = useState("");
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("checking");
   const [locationMessage, setLocationMessage] = useState("");
+  const [activeOfferIndex, setActiveOfferIndex] = useState(0);
 
   const blockWebsite = useCallback(
     (message: string, status: LocationStatus) => {
@@ -383,32 +432,93 @@ export default function HomePage() {
     }
   }, [activeCategory, availableCategories]);
 
+  const offerSlides = homeData?.offerSlides ?? [];
+  const activeOffer =
+    offerSlides.length > 0 ? offerSlides[activeOfferIndex % offerSlides.length] : null;
+
+  useEffect(() => {
+    if (offerSlides.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveOfferIndex((current) => (current + 1) % offerSlides.length);
+    }, 4000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [offerSlides.length]);
+
   const activeBranchName = homeData?.branchName || branchNameOverride || "VSeyal";
   const accessGranted = locationStatus === "resolved" && Boolean(branchId);
-  const heroImageUrl =
-    homeData?.ruleSections?.[0]?.products?.[0]?.imageUrl ||
-    homeData?.favoriteCategories?.[0]?.imageUrl ||
-    "";
 
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
         <section className={styles.topSection}>
+          {accessGranted && activeOffer ? (
+            <div
+              className={styles.offerBackdrop}
+              style={
+                {
+                  "--offer-start": activeOffer.startColor,
+                  "--offer-end": activeOffer.endColor,
+                } as CSSProperties
+              }
+            >
+              <div className={styles.offerGlowTop} />
+              <div className={styles.offerGlowBottom} />
+              <div className={styles.offerShape} />
+              <div className={styles.offerInner}>
+                <div className={styles.offerBadge}>{activeOffer.badge}</div>
+                <div className={styles.offerContent}>
+                  <div className={styles.offerText}>
+                    <h2>{activeOffer.title}</h2>
+                    <p>{activeOffer.subtitle}</p>
+                  </div>
+
+                  <div className={styles.offerMediaWrap}>
+                    {activeOffer.imageUrl ? (
+                      <div
+                        className={styles.offerMedia}
+                        style={{ backgroundImage: `url("${activeOffer.imageUrl}")` }}
+                      />
+                    ) : (
+                      <div className={styles.offerValueVisual}>
+                        {activeOffer.valueText || activeOffer.visualSymbol || "%"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {offerSlides.length > 1 ? (
+                  <div className={styles.offerDots}>
+                    {offerSlides.map((offer, index) => (
+                      <button
+                        key={`${offer.badge}-${offer.title}-${index}`}
+                        type="button"
+                        className={
+                          index === activeOfferIndex % offerSlides.length
+                            ? styles.offerDotActive
+                            : styles.offerDot
+                        }
+                        onClick={() => setActiveOfferIndex(index)}
+                        aria-label={`Show offer ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          <div className={styles.topSectionShade} />
+
           <div className={styles.topBar}>
             <div className={styles.branchMarker}>
-              <span className={styles.locationPin}>●</span>
+              <PinIcon />
               <h1>{activeBranchName}</h1>
             </div>
 
             <div className={styles.profileChip}>
-              {heroImageUrl ? (
-                <span
-                  className={styles.profilePhoto}
-                  style={{ backgroundImage: `url("${heroImageUrl}")` }}
-                />
-              ) : (
-                <span>{activeBranchName.slice(0, 1).toUpperCase()}</span>
-              )}
+              <ProfileIcon />
             </div>
           </div>
 
@@ -456,39 +566,10 @@ export default function HomePage() {
           ) : (
             <>
               <button type="button" className={styles.searchBar}>
-                <span className={styles.searchIcon}>⌕</span>
+                <SearchIcon />
                 <span>Search for &quot;Pizza&quot;</span>
-                <span className={styles.searchMic}>◉</span>
+                <MicIcon />
               </button>
-
-              <div className={styles.heroBanner}>
-                <div className={styles.heroBadge}>⚡ BUY X GET Y</div>
-                <div className={styles.heroContent}>
-                  <div className={styles.heroCopy}>
-                    <h2>Buy 1 ARABIAN PISTA KUNAFA &amp; Get 1 FRIED CHICKEN 3PCS FREE</h2>
-                    <p>Special combo offer just for you!</p>
-                  </div>
-
-                  <div className={styles.heroVisualCard}>
-                    {heroImageUrl ? (
-                      <div
-                        className={styles.heroVisual}
-                        style={{ backgroundImage: `url("${heroImageUrl}")` }}
-                      />
-                    ) : (
-                      <div className={styles.heroVisualFallback}>
-                        {productAvatarLabel(activeBranchName)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className={styles.heroDots}>
-                  <span className={styles.heroDotActive} />
-                  <span className={styles.heroDot} />
-                  <span className={styles.heroDot} />
-                </div>
-              </div>
             </>
           )}
         </section>

@@ -27,9 +27,21 @@ export type RuleSection = {
   products: Product[];
 };
 
+export type OfferSlide = {
+  badge: string;
+  title: string;
+  subtitle: string;
+  imageUrl?: string | null;
+  valueText?: string;
+  visualSymbol?: string;
+  startColor: string;
+  endColor: string;
+};
+
 export type HomePageData = {
   branchId: string;
   branchName: string;
+  offerSlides: OfferSlide[];
   billingCategories: CategoryCard[];
   favoriteCategoriesTitle: string;
   favoriteCategories: CategoryCard[];

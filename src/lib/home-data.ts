@@ -2,6 +2,7 @@ import type {
   BranchLookupResult,
   CategoryCard,
   HomePageData,
+  OfferSlide,
   Product,
   RuleSection,
 } from "@/lib/order-types";
@@ -20,6 +21,19 @@ const ACCENTS = [
   "linear-gradient(135deg, #70442d, #c89a5a)",
   "linear-gradient(135deg, #70353f, #ef4f5f)",
 ];
+
+const OFFER_PALETTE = [
+  { startColor: "#f08a40", endColor: "#b9652b" },
+  { startColor: "#4d6cfa", endColor: "#2f4dc8" },
+  { startColor: "#0fa67a", endColor: "#0a7a59" },
+  { startColor: "#e95480", endColor: "#b43d61" },
+  { startColor: "#00a8c6", endColor: "#067c96" },
+  { startColor: "#8f5cf7", endColor: "#6540b8" },
+  { startColor: "#d99500", endColor: "#9f6b00" },
+  { startColor: "#ef5350", endColor: "#b63b38" },
+  { startColor: "#26a69a", endColor: "#1e7e75" },
+  { startColor: "#7e57c2", endColor: "#5e4091" },
+] as const;
 
 type DynamicMap = Record<string, unknown>;
 
@@ -79,6 +93,11 @@ function toNumber(value: unknown) {
   if (typeof value === "number") return value;
   if (typeof value === "string") return Number.parseFloat(value) || 0;
   return 0;
+}
+
+function toFiniteNumber(value: unknown) {
+  const number = toNumber(value);
+  return Number.isFinite(number) ? number : 0;
 }
 
 function readText(...values: unknown[]) {
@@ -567,6 +586,146 @@ async function fetchFavoriteCategories(widgetSettings: unknown, branchId: string
   };
 }
 
+function readOfferImage(node: unknown) {
+  const map = toMap(node);
+  if (!map) return null;
+  return extractImageFromAny(map.images ?? map.image ?? map.thumbnail ?? map);
+}
+
+function buildOfferSlides(settings: unknown): OfferSlide[] {
+  const config = toMap(settings);
+  if (!config) return [];
+
+  const slides: OfferSlide[] = [];
+  const addSlide = (slide: Omit<OfferSlide, "startColor" | "endColor">) => {
+    const palette = OFFER_PALETTE[slides.length % OFFER_PALETTE.length];
+    slides.push({
+      ...slide,
+      startColor: palette.startColor,
+      endColor: palette.endColor,
+    });
+  };
+
+  const productToProductOffers = toArray(config.productToProductOffers);
+  if (toBool(config.enableProductToProductOffer)) {
+    for (const rawOffer of productToProductOffers) {
+      const offer = toMap(rawOffer);
+      if (!offer || !toBool(offer.enabled)) continue;
+
+      const buyProduct = toMap(offer.buyProduct);
+      const freeProduct = toMap(offer.freeProduct);
+      const buyName = readText(buyProduct?.name) || "Item";
+      const freeName = readText(freeProduct?.name) || "Item";
+      const buyQty = Math.max(1, Math.round(toFiniteNumber(offer.buyQuantity) || 1));
+      const freeQty = Math.max(1, Math.round(toFiniteNumber(offer.freeQuantity) || 1));
+      const sameProduct =
+        extractRefId(buyProduct) && extractRefId(buyProduct) === extractRefId(freeProduct);
+
+      addSlide({
+        badge: "BUY X GET Y",
+        title: sameProduct
+          ? `Buy ${buyQty} Get ${freeQty} FREE on ${buyName}`
+          : `Buy ${buyQty} ${buyName} & Get ${freeQty} ${freeName} FREE`,
+        subtitle: "Special combo offer just for you!",
+        imageUrl: readOfferImage(freeProduct),
+        visualSymbol: "+",
+      });
+    }
+  }
+
+  const productPriceOffers = toArray(config.productPriceOffers);
+  if (toBool(config.enableProductPriceOffer)) {
+    for (const rawOffer of productPriceOffers) {
+      const offer = toMap(rawOffer);
+      if (!offer || !toBool(offer.enabled)) continue;
+
+      const product = toMap(offer.product);
+      if (!product) continue;
+
+      const productName = readText(product.name) || "Unknown Product";
+      const originalPrice = toFiniteNumber(toMap(product.defaultPriceDetails)?.price);
+      let finalPrice = toFiniteNumber(
+        offer.offerPrice ?? offer.priceAfterDiscount ?? offer.effectiveUnitPrice,
+      );
+      const discountAmount = toFiniteNumber(
+        offer.discountPerUnit ?? offer.offerAmount ?? offer.discountAmount ?? offer.discount,
+      );
+      if (finalPrice <= 0 && originalPrice > 0 && discountAmount > 0) {
+        finalPrice = originalPrice - discountAmount;
+      }
+      const effectiveDiscount = originalPrice - finalPrice;
+
+      addSlide({
+        badge: "SPECIAL PRICE",
+        title: `${productName} at ₹${Math.round(finalPrice)}`,
+        subtitle:
+          effectiveDiscount > 0
+            ? `Was ₹${Math.round(originalPrice)} | Save ₹${Math.round(effectiveDiscount)}`
+            : "Exclusive Deal!",
+        imageUrl: readOfferImage(product),
+        visualSymbol: "₹",
+      });
+    }
+  }
+
+  const randomOffers = toArray(config.randomCustomerOfferProducts);
+  if (toBool(config.enableRandomCustomerProductOffer)) {
+    for (const rawOffer of randomOffers) {
+      const offer = toMap(rawOffer);
+      if (!offer || !toBool(offer.enabled)) continue;
+
+      const product = toMap(offer.product);
+      const productName = readText(product?.name) || "Product";
+
+      addSlide({
+        badge: "LUCKY OFFER",
+        title: `FREE ${productName}?`,
+        subtitle: "You might be our lucky winner today!",
+        imageUrl: readOfferImage(product),
+        visualSymbol: "?",
+      });
+    }
+  }
+
+  if (toBool(config.enableTotalPercentageOffer)) {
+    const percent = Math.round(toFiniteNumber(config.totalPercentageOfferPercent));
+    addSlide({
+      badge: "FLAT DISCOUNT",
+      title: `${percent}% OFF on Total Bill`,
+      subtitle: "Enjoy big savings on your order",
+      valueText: `${percent}%`,
+      visualSymbol: "%",
+    });
+  }
+
+  if (toBool(config.enableCustomerEntryPercentageOffer)) {
+    const percent = Math.round(toFiniteNumber(config.customerEntryPercentageOfferPercent));
+    addSlide({
+      badge: "SIGN-UP BONUS",
+      title: `${percent}% OFF for New Customers`,
+      subtitle: "Provide your details to unlock this offer",
+      valueText: `${percent}%`,
+      visualSymbol: "%",
+    });
+  }
+
+  if (toBool(config.enabled) && toFiniteNumber(config.offerAmount) > 0) {
+    const spend = Math.round(toFiniteNumber(config.spendAmountPerStep));
+    const points = Math.round(toFiniteNumber(config.pointsPerStep));
+    const needed = Math.round(toFiniteNumber(config.pointsNeededForOffer));
+    const reward = Math.round(toFiniteNumber(config.offerAmount));
+    addSlide({
+      badge: "LOYALTY REWARDS",
+      title: `Earn ₹${reward} Cashback!`,
+      subtitle: `Spend ₹${spend} = ${points} Points | Reach ${needed} pts`,
+      valueText: `₹${reward}`,
+      visualSymbol: "₹",
+    });
+  }
+
+  return slides;
+}
+
 export async function findBranchByCoordinates(
   latitude: number,
   longitude: number,
@@ -624,8 +783,9 @@ export async function findBranchByCoordinates(
 
 export async function getHomePageData(inputBranchId?: string): Promise<HomePageData> {
   const branchId = readText(inputBranchId) || DEFAULT_BRANCH_ID;
-  const [widgetSettings, branchName, billingCategories] = await Promise.all([
+  const [widgetSettings, offerSettings, branchName, billingCategories] = await Promise.all([
     fetchJson("/globals/widget-settings?depth=1"),
+    fetchJson("/globals/customer-offer-settings?depth=1"),
     fetchBranchName(branchId),
     fetchBillingCategories(branchId),
   ]);
@@ -638,6 +798,7 @@ export async function getHomePageData(inputBranchId?: string): Promise<HomePageD
   return {
     branchId,
     branchName,
+    offerSlides: buildOfferSlides(offerSettings),
     billingCategories,
     favoriteCategoriesTitle: favoriteCategoryPayload.title,
     favoriteCategories: favoriteCategoryPayload.categories,

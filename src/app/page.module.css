@@ -13,32 +13,30 @@
 .topSection {
   position: relative;
   overflow: hidden;
-  min-height: 760px;
-  padding: 30px 34px 26px;
-  border-radius: 0 0 36px 36px;
-  background: linear-gradient(135deg, #d97937 0%, #c66c33 58%, #b45f2c 100%);
+  min-height: 314px;
+  padding: 10px 20px 24px;
+  border-radius: 0 0 30px 30px;
+  background: linear-gradient(135deg, #4b7cc0, #3d68b6);
 }
 
-.topSection::before {
-  content: "";
+.offerBackdrop,
+.topSectionShade {
   position: absolute;
-  top: -120px;
-  right: -40px;
-  width: 360px;
-  height: 360px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.14), transparent 62%);
+  inset: 0;
 }
 
-.topSection::after {
-  content: "";
-  position: absolute;
-  left: -80px;
-  bottom: -120px;
-  width: 280px;
-  height: 280px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.08), transparent 62%);
+.offerBackdrop {
+  background: linear-gradient(135deg, var(--offer-start, #f08a40), var(--offer-end, #b9652b));
+}
+
+.topSectionShade {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.12),
+    rgba(0, 0, 0, 0) 34%,
+    rgba(0, 0, 0, 0.08)
+  );
+  pointer-events: none;
 }
 
 .topBar {
@@ -50,28 +48,175 @@
   gap: 16px;
 }
 
+.offerInner {
+  position: relative;
+  height: 100%;
+  padding: 160px 22px 32px;
+}
+
+.offerGlowTop,
+.offerGlowBottom {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.offerGlowTop {
+  top: -50px;
+  right: -20px;
+  width: 150px;
+  height: 150px;
+}
+
+.offerGlowBottom {
+  left: -30px;
+  bottom: -40px;
+  width: 120px;
+  height: 120px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.offerShape {
+  position: absolute;
+  right: 10px;
+  bottom: -20px;
+  width: 150px;
+  height: 150px;
+  border-radius: 34px;
+  transform: rotate(36deg);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.offerBadge {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border-radius: 30px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.offerContent {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.offerText h2 {
+  max-width: 14ch;
+  color: #fff;
+  font-size: clamp(1.9rem, 3vw, 3.1rem);
+  font-weight: 900;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.38);
+}
+
+.offerText p {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: clamp(0.96rem, 1.3vw, 1.1rem);
+  font-style: italic;
+  line-height: 1.15;
+}
+
+.offerMediaWrap {
+  display: grid;
+  place-items: center;
+}
+
+.offerMedia,
+.offerValueVisual {
+  width: 110px;
+  height: 110px;
+  border-radius: 20px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  background-color: #fff;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
+.offerValueVisual {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  font-size: 3.2rem;
+  font-weight: 900;
+  letter-spacing: -0.12em;
+  text-shadow:
+    4px 4px 15px rgba(0, 0, 0, 0.54),
+    -1px -1px 2px rgba(255, 255, 255, 0.24);
+  transform: rotate(-8deg);
+}
+
+.offerDots {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+
+.offerDot,
+.offerDotActive {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.offerDot {
+  width: 8px;
+}
+
+.offerDotActive {
+  width: 18px;
+  background: #fff;
+}
+
+.offerDot,
+.offerDotActive {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
 .branchMarker {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 4px;
 }
 
 .branchMarker h1 {
   color: #fff;
-  font-size: clamp(2.1rem, 4vw, 3.4rem);
-  font-weight: 900;
-  line-height: 0.95;
-  text-shadow: 0 4px 12px rgba(72, 29, 7, 0.18);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.locationPin {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
+.inlineIcon {
+  width: 15px;
+  height: 15px;
   color: #fff;
-  font-size: 1.8rem;
-  line-height: 1;
 }
 
 .locationCard,
@@ -169,115 +314,19 @@
   border: 1px solid rgba(255, 255, 255, 0.34);
 }
 
-.brandLockup h1 {
-  margin-top: 6px;
-  color: #fff;
-  font-size: clamp(2rem, 5vw, 3.2rem);
-  font-weight: 900;
-  line-height: 0.95;
-}
-
-.brandEyebrow {
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 0.8rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
 .profileChip {
   display: grid;
   place-items: center;
-  width: 118px;
-  height: 118px;
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-  font-size: 2rem;
-  font-weight: 900;
-  box-shadow: inset 0 0 0 16px rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(14px);
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.profilePhoto {
-  display: block;
-  width: 92px;
-  height: 92px;
-  border-radius: 999px;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  box-shadow: 0 10px 24px rgba(92, 43, 16, 0.22);
-}
-
-.offerStage {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 270px;
-  gap: 20px;
-  align-items: end;
-  margin-top: 34px;
-}
-
-.offerCopy h2 {
-  max-width: 11ch;
-  margin-top: 16px;
-  color: #fff;
-  font-size: clamp(1.7rem, 4vw, 3rem);
-  line-height: 1.02;
-  font-weight: 900;
-}
-
-.offerCopy p {
-  max-width: 50ch;
-  margin-top: 12px;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.98rem;
-  line-height: 1.55;
-}
-
-.liveChip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  border-radius: 999px;
-  padding: 0 14px;
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-  font-size: 0.78rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  backdrop-filter: blur(14px);
-}
-
-.offerPanel {
-  display: grid;
-  gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 24px;
-  padding: 18px;
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  backdrop-filter: blur(18px);
-}
-
-.offerPanel strong {
-  font-size: 0.82rem;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.offerPanel span {
-  font-size: 1.35rem;
-  font-weight: 900;
-}
-
-.offerPanel small {
-  color: rgba(255, 255, 255, 0.76);
-  font-size: 0.92rem;
+.profileIcon {
+  width: 24px;
+  height: 24px;
 }
 
 .searchBar {
@@ -287,159 +336,33 @@
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 96px;
-  margin-top: 28px;
-  border: 2px solid #d7d1cb;
-  border-radius: 30px;
-  padding: 0 26px;
+  min-height: 50px;
+  margin-top: 15px;
+  border: 1px solid #e0e3e8;
+  border-radius: 15px;
+  padding: 0 15px;
   background: #fff;
   color: #8a8a8a;
-  font-size: clamp(1.4rem, 2.2vw, 2rem);
+  font-size: 15px;
   font-weight: 500;
   text-align: left;
-  box-shadow: 0 12px 28px rgba(128, 71, 31, 0.16);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
   cursor: pointer;
 }
 
-.searchIcon,
-.searchMic {
-  color: #ef4f5f;
-  font-size: clamp(2rem, 3vw, 2.9rem);
-  font-weight: 900;
+.searchBar > span {
+  flex: 1;
 }
 
-.searchMic {
+.searchBar > svg:last-child {
   margin-left: auto;
 }
 
-.heroBanner {
-  position: relative;
-  z-index: 1;
-  overflow: hidden;
-  display: grid;
-  gap: 18px;
-  min-height: 380px;
-  margin-top: 18px;
-  border-radius: 38px;
-  padding: 26px 26px 58px;
-  background: linear-gradient(135deg, rgba(217, 121, 55, 0.68), rgba(180, 95, 44, 0.78));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-}
-
-.heroBanner::before {
-  content: "";
-  position: absolute;
-  top: -68px;
-  right: -14px;
-  width: 240px;
-  height: 240px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.heroBanner::after {
-  content: "";
-  position: absolute;
-  right: 88px;
-  bottom: -48px;
-  width: 240px;
-  height: 240px;
-  border-radius: 40px;
-  transform: rotate(36deg);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.heroBadge {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: fit-content;
-  min-height: 58px;
-  border-radius: 999px;
-  padding: 0 24px;
-  border: 2px solid rgba(255, 255, 255, 0.34);
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  font-size: clamp(1rem, 1.5vw, 1.25rem);
-  font-weight: 900;
-  letter-spacing: 0.22em;
-}
-
-.heroContent {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 28px;
-  align-items: center;
-}
-
-.heroCopy h2 {
-  max-width: 12ch;
-  color: #fff;
-  font-size: clamp(2.4rem, 4.4vw, 4.25rem);
-  font-weight: 900;
-  line-height: 0.98;
-  text-shadow: 0 6px 18px rgba(75, 33, 12, 0.24);
-}
-
-.heroCopy p {
-  margin-top: 14px;
-  color: rgba(255, 255, 255, 0.88);
-  font-size: clamp(1.4rem, 2vw, 2rem);
-  font-style: italic;
-  line-height: 1.15;
-}
-
-.heroVisualCard {
-  display: grid;
-  place-items: center;
-}
-
-.heroVisual,
-.heroVisualFallback {
-  width: min(100%, 300px);
-  aspect-ratio: 1;
-  border-radius: 38px;
-  background-color: #fff;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  box-shadow: 0 18px 34px rgba(89, 43, 15, 0.2);
-}
-
-.heroVisualFallback {
-  display: grid;
-  place-items: center;
-  color: #c66c33;
-  font-size: 3rem;
-  font-weight: 900;
-}
-
-.heroDots {
-  position: absolute;
-  left: 50%;
-  bottom: 22px;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  transform: translateX(-50%);
-}
-
-.heroDot,
-.heroDotActive {
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.heroDotActive {
-  width: 54px;
-  background: rgba(255, 255, 255, 0.92);
+.inlineIconLarge {
+  width: 28px;
+  height: 28px;
+  color: #ef4f5f;
+  flex-shrink: 0;
 }
 
 .categoryStrip {
@@ -878,8 +801,8 @@
 }
 
 @media (max-width: 1080px) {
-  .heroContent {
-    grid-template-columns: minmax(0, 1fr) 260px;
+  .offerText h2 {
+    font-size: 2.3rem;
   }
 
   .productGrid {
@@ -904,33 +827,27 @@
   }
 
   .profileChip {
-    width: 96px;
-    height: 96px;
+    width: 40px;
+    height: 40px;
   }
 
-  .profilePhoto {
-    width: 74px;
-    height: 74px;
+  .offerInner {
+    padding: 148px 20px 30px;
   }
 
   .searchBar {
-    min-height: 82px;
-    border-radius: 24px;
-    padding-inline: 22px;
+    min-height: 50px;
+    padding-inline: 15px;
   }
 
-  .heroBanner {
-    min-height: auto;
-    padding: 22px 22px 54px;
+  .offerContent {
+    grid-template-columns: minmax(0, 1fr) 92px;
   }
 
-  .heroContent {
-    grid-template-columns: 1fr;
-  }
-
-  .heroVisual,
-  .heroVisualFallback {
-    width: min(100%, 260px);
+  .offerMedia,
+  .offerValueVisual {
+    width: 92px;
+    height: 92px;
   }
 
   .fastGrid {
@@ -953,74 +870,68 @@
   }
 
   .branchMarker {
-    gap: 10px;
-  }
-
-  .locationPin {
-    width: 34px;
-    height: 34px;
-    font-size: 1.35rem;
+    gap: 4px;
   }
 
   .branchMarker h1 {
-    font-size: 1.9rem;
+    font-size: 13px;
   }
 
   .profileChip {
-    width: 78px;
-    height: 78px;
-    font-size: 1.4rem;
-    box-shadow: inset 0 0 0 10px rgba(255, 255, 255, 0.08);
+    width: 40px;
+    height: 40px;
   }
 
-  .profilePhoto {
-    width: 58px;
-    height: 58px;
+  .profileIcon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .offerInner {
+    padding: 142px 16px 28px;
   }
 
   .searchBar {
-    min-height: 70px;
-    margin-top: 18px;
-    border-radius: 20px;
-    padding-inline: 18px;
-    font-size: 1.15rem;
+    min-height: 50px;
+    margin-top: 15px;
+    border-radius: 15px;
+    padding-inline: 15px;
+    font-size: 15px;
   }
 
-  .heroBadge {
-    min-height: 48px;
-    padding-inline: 18px;
-    font-size: 0.88rem;
-    letter-spacing: 0.14em;
+  .offerBadge {
+    min-height: 32px;
+    padding-inline: 12px;
   }
 
-  .heroBanner {
-    gap: 14px;
-    padding: 18px 18px 48px;
-    border-radius: 28px;
+  .offerContent {
+    grid-template-columns: minmax(0, 1fr) 84px;
+    gap: 6px;
   }
 
-  .heroCopy h2 {
-    font-size: 2.2rem;
+  .offerText h2 {
+    font-size: 1.85rem;
   }
 
-  .heroCopy p {
-    font-size: 1.2rem;
+  .offerText p {
+    font-size: 0.9rem;
   }
 
-  .heroVisual,
-  .heroVisualFallback {
-    width: min(100%, 210px);
-    border-radius: 28px;
+  .offerMedia,
+  .offerValueVisual {
+    width: 84px;
+    height: 84px;
+    border-radius: 18px;
   }
 
-  .heroDot,
-  .heroDotActive {
-    width: 12px;
-    height: 12px;
+  .offerDot {
+    width: 8px;
+    height: 8px;
   }
 
-  .heroDotActive {
-    width: 38px;
+  .offerDotActive {
+    width: 18px;
+    height: 8px;
   }
 
   .fastGrid {
