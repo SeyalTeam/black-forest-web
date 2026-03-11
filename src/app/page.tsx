@@ -385,19 +385,30 @@ export default function HomePage() {
 
   const activeBranchName = homeData?.branchName || branchNameOverride || "VSeyal";
   const accessGranted = locationStatus === "resolved" && Boolean(branchId);
+  const heroImageUrl =
+    homeData?.ruleSections?.[0]?.products?.[0]?.imageUrl ||
+    homeData?.favoriteCategories?.[0]?.imageUrl ||
+    "";
 
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
         <section className={styles.topSection}>
           <div className={styles.topBar}>
-            <div className={styles.brandLockup}>
-              <span className={styles.brandEyebrow}>{activeBranchName} branch</span>
+            <div className={styles.branchMarker}>
+              <span className={styles.locationPin}>●</span>
               <h1>{activeBranchName}</h1>
             </div>
 
             <div className={styles.profileChip}>
-              <span>T12</span>
+              {heroImageUrl ? (
+                <span
+                  className={styles.profilePhoto}
+                  style={{ backgroundImage: `url("${heroImageUrl}")` }}
+                />
+              ) : (
+                <span>{activeBranchName.slice(0, 1).toUpperCase()}</span>
+              )}
             </div>
           </div>
 
@@ -419,7 +430,7 @@ export default function HomePage() {
             </div>
           ) : null}
 
-          {locationStatus !== "prompt" && locationMessage ? (
+          {locationStatus !== "prompt" && locationMessage && !accessGranted ? (
             <div className={styles.locationStatus}>
               <strong>Location</strong>
               <span>{locationMessage}</span>
@@ -444,28 +455,40 @@ export default function HomePage() {
             </div>
           ) : (
             <>
-              <div className={styles.offerStage}>
-                <div className={styles.offerCopy}>
-                  <span className={styles.liveChip}>Live table ordering</span>
-                  <h2>Scan. Pick. Send to kitchen.</h2>
-                  <p>
-                    Same customer flow as the app homepage, but adjusted for website width and
-                    responsive product grids.
-                  </p>
-                </div>
-
-                <div className={styles.offerPanel}>
-                  <strong>Today&apos;s branch box</strong>
-                  <span>2 combo offers active</span>
-                  <small>Shared Tables enabled</small>
-                </div>
-              </div>
-
               <button type="button" className={styles.searchBar}>
                 <span className={styles.searchIcon}>⌕</span>
                 <span>Search for &quot;Pizza&quot;</span>
                 <span className={styles.searchMic}>◉</span>
               </button>
+
+              <div className={styles.heroBanner}>
+                <div className={styles.heroBadge}>⚡ BUY X GET Y</div>
+                <div className={styles.heroContent}>
+                  <div className={styles.heroCopy}>
+                    <h2>Buy 1 ARABIAN PISTA KUNAFA &amp; Get 1 FRIED CHICKEN 3PCS FREE</h2>
+                    <p>Special combo offer just for you!</p>
+                  </div>
+
+                  <div className={styles.heroVisualCard}>
+                    {heroImageUrl ? (
+                      <div
+                        className={styles.heroVisual}
+                        style={{ backgroundImage: `url("${heroImageUrl}")` }}
+                      />
+                    ) : (
+                      <div className={styles.heroVisualFallback}>
+                        {productAvatarLabel(activeBranchName)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className={styles.heroDots}>
+                  <span className={styles.heroDotActive} />
+                  <span className={styles.heroDot} />
+                  <span className={styles.heroDot} />
+                </div>
+              </div>
             </>
           )}
         </section>

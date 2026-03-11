@@ -13,30 +13,65 @@
 .topSection {
   position: relative;
   overflow: hidden;
-  min-height: 328px;
-  padding: 24px 20px 28px;
-  border-radius: 0 0 30px 30px;
-  background: linear-gradient(135deg, #4b7cc0, #3d68b6);
+  min-height: 760px;
+  padding: 30px 34px 26px;
+  border-radius: 0 0 36px 36px;
+  background: linear-gradient(135deg, #d97937 0%, #c66c33 58%, #b45f2c 100%);
 }
 
 .topSection::before {
   content: "";
   position: absolute;
-  top: -72px;
-  right: -52px;
-  width: 220px;
-  height: 220px;
+  top: -120px;
+  right: -40px;
+  width: 360px;
+  height: 360px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 62%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.14), transparent 62%);
+}
+
+.topSection::after {
+  content: "";
+  position: absolute;
+  left: -80px;
+  bottom: -120px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08), transparent 62%);
 }
 
 .topBar {
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.branchMarker {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.branchMarker h1 {
+  color: #fff;
+  font-size: clamp(2.1rem, 4vw, 3.4rem);
+  font-weight: 900;
+  line-height: 0.95;
+  text-shadow: 0 4px 12px rgba(72, 29, 7, 0.18);
+}
+
+.locationPin {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: #fff;
+  font-size: 1.8rem;
+  line-height: 1;
 }
 
 .locationCard,
@@ -153,14 +188,26 @@
 .profileChip {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
+  width: 118px;
+  height: 118px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.14);
   color: #fff;
-  font-size: 1rem;
+  font-size: 2rem;
   font-weight: 900;
+  box-shadow: inset 0 0 0 16px rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(14px);
+}
+
+.profilePhoto {
+  display: block;
+  width: 92px;
+  height: 92px;
+  border-radius: 999px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  box-shadow: 0 10px 24px rgba(92, 43, 16, 0.22);
 }
 
 .offerStage {
@@ -240,29 +287,159 @@
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 50px;
-  margin-top: 18px;
-  border: 1px solid #e0e3e8;
-  border-radius: 15px;
-  padding: 0 16px;
+  min-height: 96px;
+  margin-top: 28px;
+  border: 2px solid #d7d1cb;
+  border-radius: 30px;
+  padding: 0 26px;
   background: #fff;
   color: #8a8a8a;
-  font-size: 0.96rem;
-  font-weight: 600;
+  font-size: clamp(1.4rem, 2.2vw, 2rem);
+  font-weight: 500;
   text-align: left;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 12px 28px rgba(128, 71, 31, 0.16);
   cursor: pointer;
 }
 
 .searchIcon,
 .searchMic {
   color: #ef4f5f;
-  font-size: 1.1rem;
+  font-size: clamp(2rem, 3vw, 2.9rem);
   font-weight: 900;
 }
 
 .searchMic {
   margin-left: auto;
+}
+
+.heroBanner {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  display: grid;
+  gap: 18px;
+  min-height: 380px;
+  margin-top: 18px;
+  border-radius: 38px;
+  padding: 26px 26px 58px;
+  background: linear-gradient(135deg, rgba(217, 121, 55, 0.68), rgba(180, 95, 44, 0.78));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.heroBanner::before {
+  content: "";
+  position: absolute;
+  top: -68px;
+  right: -14px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.heroBanner::after {
+  content: "";
+  position: absolute;
+  right: 88px;
+  bottom: -48px;
+  width: 240px;
+  height: 240px;
+  border-radius: 40px;
+  transform: rotate(36deg);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.heroBadge {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 58px;
+  border-radius: 999px;
+  padding: 0 24px;
+  border: 2px solid rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+}
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 28px;
+  align-items: center;
+}
+
+.heroCopy h2 {
+  max-width: 12ch;
+  color: #fff;
+  font-size: clamp(2.4rem, 4.4vw, 4.25rem);
+  font-weight: 900;
+  line-height: 0.98;
+  text-shadow: 0 6px 18px rgba(75, 33, 12, 0.24);
+}
+
+.heroCopy p {
+  margin-top: 14px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: clamp(1.4rem, 2vw, 2rem);
+  font-style: italic;
+  line-height: 1.15;
+}
+
+.heroVisualCard {
+  display: grid;
+  place-items: center;
+}
+
+.heroVisual,
+.heroVisualFallback {
+  width: min(100%, 300px);
+  aspect-ratio: 1;
+  border-radius: 38px;
+  background-color: #fff;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  box-shadow: 0 18px 34px rgba(89, 43, 15, 0.2);
+}
+
+.heroVisualFallback {
+  display: grid;
+  place-items: center;
+  color: #c66c33;
+  font-size: 3rem;
+  font-weight: 900;
+}
+
+.heroDots {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transform: translateX(-50%);
+}
+
+.heroDot,
+.heroDotActive {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.heroDotActive {
+  width: 54px;
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .categoryStrip {
@@ -701,14 +878,19 @@
 }
 
 @media (max-width: 1080px) {
+  .heroContent {
+    grid-template-columns: minmax(0, 1fr) 260px;
+  }
+
   .productGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 860px) {
-  .offerStage {
-    grid-template-columns: 1fr;
+  .topSection {
+    min-height: auto;
+    padding: 24px 20px 24px;
   }
 
   .locationCard,
@@ -719,6 +901,36 @@
 
   .locationActions {
     width: 100%;
+  }
+
+  .profileChip {
+    width: 96px;
+    height: 96px;
+  }
+
+  .profilePhoto {
+    width: 74px;
+    height: 74px;
+  }
+
+  .searchBar {
+    min-height: 82px;
+    border-radius: 24px;
+    padding-inline: 22px;
+  }
+
+  .heroBanner {
+    min-height: auto;
+    padding: 22px 22px 54px;
+  }
+
+  .heroContent {
+    grid-template-columns: 1fr;
+  }
+
+  .heroVisual,
+  .heroVisualFallback {
+    width: min(100%, 260px);
   }
 
   .fastGrid {
@@ -732,13 +944,83 @@
 
 @media (max-width: 640px) {
   .topSection {
-    min-height: 300px;
-    padding: 20px 16px 24px;
+    padding: 18px 16px 20px;
   }
 
   .boxSection,
   .favoriteSection {
     margin-inline: 12px;
+  }
+
+  .branchMarker {
+    gap: 10px;
+  }
+
+  .locationPin {
+    width: 34px;
+    height: 34px;
+    font-size: 1.35rem;
+  }
+
+  .branchMarker h1 {
+    font-size: 1.9rem;
+  }
+
+  .profileChip {
+    width: 78px;
+    height: 78px;
+    font-size: 1.4rem;
+    box-shadow: inset 0 0 0 10px rgba(255, 255, 255, 0.08);
+  }
+
+  .profilePhoto {
+    width: 58px;
+    height: 58px;
+  }
+
+  .searchBar {
+    min-height: 70px;
+    margin-top: 18px;
+    border-radius: 20px;
+    padding-inline: 18px;
+    font-size: 1.15rem;
+  }
+
+  .heroBadge {
+    min-height: 48px;
+    padding-inline: 18px;
+    font-size: 0.88rem;
+    letter-spacing: 0.14em;
+  }
+
+  .heroBanner {
+    gap: 14px;
+    padding: 18px 18px 48px;
+    border-radius: 28px;
+  }
+
+  .heroCopy h2 {
+    font-size: 2.2rem;
+  }
+
+  .heroCopy p {
+    font-size: 1.2rem;
+  }
+
+  .heroVisual,
+  .heroVisualFallback {
+    width: min(100%, 210px);
+    border-radius: 28px;
+  }
+
+  .heroDot,
+  .heroDotActive {
+    width: 12px;
+    height: 12px;
+  }
+
+  .heroDotActive {
+    width: 38px;
   }
 
   .fastGrid {
