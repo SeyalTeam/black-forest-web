@@ -259,6 +259,12 @@
   cursor: pointer;
 }
 
+.paymentButton:disabled,
+.paymentButtonActive:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .paymentButtonActive {
   border-color: #27ba3d;
   background: rgba(39, 186, 61, 0.08);
@@ -284,8 +290,13 @@
   cursor: pointer;
 }
 
-.billMessage {
-  color: #1b8f31;
+.billButton:disabled {
+  cursor: wait;
+  opacity: 0.8;
+}
+
+.billError {
+  color: #d44f5d;
   font-size: 0.92rem;
   font-weight: 700;
   text-align: center;
@@ -410,7 +421,7 @@
     height: 58px;
   }
 
-  .billMessage {
+  .billError {
     font-size: 0.82rem;
   }
 }

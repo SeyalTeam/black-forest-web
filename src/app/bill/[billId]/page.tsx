@@ -31,7 +31,8 @@ export default function BillSummaryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("cash");
-  const [billMessage, setBillMessage] = useState("");
+  const [billError, setBillError] = useState("");
+  const [isSubmittingBill, setIsSubmittingBill] = useState(false);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -110,6 +111,45 @@ export default function BillSummaryPage() {
 
   const returnToMenu = () => {
     router.push("/");
+  };
+
+  const completeBill = async () => {
+    if (!pageData?.billId) {
+      setBillError("Bill is not ready yet.");
+      return;
+    }
+
+    setIsSubmittingBill(true);
+    setBillError("");
+
+    try {
+      const response = await fetch("/api/complete-bill", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          billId: pageData.billId,
+          paymentMethod: selectedPaymentMethod,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        message?: string;
+        invoiceNumber?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.message || "Unable to complete bill.");
+      }
+
+      window.sessionStorage.removeItem(`${BILL_CACHE_KEY_PREFIX}${pageData.billId}`);
+      router.replace("/");
+    } catch (error) {
+      setBillError(error instanceof Error ? error.message : "Unable to complete bill.");
+    } finally {
+      setIsSubmittingBill(false);
+    }
   };
 
   const tableLabel = pageData?.tableNumber ? `Table ${pageData.tableNumber}` : "Table";
@@ -226,9 +266,13 @@ export default function BillSummaryPage() {
                   type="button"
                   className={isActive ? styles.paymentButtonActive : styles.paymentButton}
                   onClick={() => {
+                    if (isSubmittingBill) {
+                      return;
+                    }
                     setSelectedPaymentMethod(option.id);
-                    setBillMessage("");
+                    setBillError("");
                   }}
+                  disabled={isSubmittingBill}
                 >
                   <Icon className={styles.paymentIcon} />
                   {option.label}
@@ -240,12 +284,13 @@ export default function BillSummaryPage() {
           <button
             type="button"
             className={styles.billButton}
-            onClick={() => setBillMessage(`Selected ${selectedPaymentMethod.toUpperCase()} billing mode.`)}
+            onClick={completeBill}
+            disabled={isSubmittingBill || !pageData}
           >
-            BILL
+            {isSubmittingBill ? "BILLING..." : "BILL"}
           </button>
 
-          {billMessage ? <div className={styles.billMessage}>{billMessage}</div> : null}
+          {billError ? <div className={styles.billError}>{billError}</div> : null}
         </div>
       </div>
     </main>
