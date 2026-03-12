@@ -15,11 +15,11 @@
 .hero {
   position: relative;
   overflow: hidden;
-  border-radius: 46px;
-  min-height: 560px;
-  padding: 22px 22px 30px;
-  background: linear-gradient(135deg, #17b78e, #0a8d67);
-  box-shadow: 0 24px 44px rgba(29, 108, 82, 0.18);
+  border-radius: 40px;
+  min-height: 450px;
+  padding: 20px 20px 26px;
+  background: linear-gradient(135deg, #dd833c, #bf6a2d);
+  box-shadow: 0 24px 44px rgba(113, 61, 25, 0.18);
 }
 
 .offerBackdrop {
@@ -59,6 +59,9 @@
 }
 
 .topBar,
+.heroContent,
+.heroSpacer,
+.offerDots,
 .heroSearch,
 .pageHeader,
 .sectionBlock,
@@ -74,7 +77,7 @@
 
 .topBar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 14px;
 }
@@ -84,22 +87,14 @@
   align-items: center;
   gap: 8px;
   color: #ffffff;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.branchName {
-  color: #ffffff;
-  font-size: clamp(2.8rem, 7vw, 5rem);
-  line-height: 0.98;
-  font-weight: 900;
-  letter-spacing: -0.05em;
-  text-shadow: 0 6px 22px rgba(54, 27, 6, 0.18);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .profileAvatar {
-  width: 134px;
-  height: 134px;
+  width: 82px;
+  height: 82px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -111,16 +106,16 @@
 }
 
 .heroContent {
-  margin-top: 28px;
-  min-height: 250px;
+  margin-top: 12px;
+  min-height: 220px;
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
-  align-items: end;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1.18fr) minmax(150px, 0.82fr);
+  align-items: center;
+  gap: 14px;
 }
 
 .heroSpacer {
-  min-height: 300px;
+  min-height: 220px;
 }
 
 .offerBadge {
@@ -128,57 +123,67 @@
   align-items: center;
   gap: 8px;
   width: fit-content;
-  min-height: 42px;
-  padding: 0 18px;
+  min-height: 34px;
+  padding: 0 14px;
   border-radius: 999px;
   border: 2px solid rgba(255, 255, 255, 0.34);
   color: #fff8f1;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .offerText {
-  margin-top: 16px;
-  max-width: 560px;
+  margin-top: 12px;
+  max-width: none;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
 }
 
 .offerText h2 {
   color: #fffdf9;
   font-family: var(--font-manrope), sans-serif;
-  font-size: clamp(2.25rem, 6vw, 4.4rem);
-  line-height: 0.97;
+  font-size: clamp(1.75rem, 4vw, 3rem);
+  line-height: 1.02;
   font-weight: 900;
-  letter-spacing: -0.06em;
+  letter-spacing: -0.04em;
   text-shadow: 0 7px 22px rgba(0, 0, 0, 0.2);
+  min-height: 0;
+  overflow: visible;
+  word-break: break-word;
 }
 
 .offerText p {
-  margin-top: 10px;
+  margin-top: 8px;
   color: rgba(255, 249, 242, 0.88);
-  font-size: clamp(1.1rem, 2vw, 1.55rem);
+  font-size: clamp(0.95rem, 1.8vw, 1.2rem);
   font-style: italic;
   font-weight: 500;
+  min-height: 0;
+  overflow: visible;
 }
 
 .offerMediaWrap {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: flex-end;
 }
 
 .offerMedia,
 .offerValueVisual {
-  width: min(100%, 240px);
+  width: min(100%, 176px);
   aspect-ratio: 1;
-  border-radius: 40px;
+  border-radius: 24px;
   background-position: center;
   background-size: cover;
   box-shadow:
-    0 18px 30px rgba(71, 31, 8, 0.18),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.42);
+    0 20px 34px rgba(71, 31, 8, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 0 0 4px rgba(255, 255, 255, 0.1);
 }
 
 .offerMedia {
@@ -191,47 +196,48 @@
   justify-content: center;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.84));
   color: #d96c36;
-  font-size: clamp(2rem, 6vw, 4rem);
+  font-size: clamp(1.7rem, 5vw, 3rem);
   font-weight: 900;
+  text-shadow: 0 8px 18px rgba(217, 108, 54, 0.18);
 }
 
 .offerDots {
-  position: absolute;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
 }
 
 .offerDot,
 .offerDotActive {
-  width: 14px;
-  height: 14px;
+  width: 9px;
+  height: 9px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.38);
 }
 
 .offerDotActive {
-  width: 44px;
+  width: 28px;
   background: #ffffff;
 }
 
 .heroSearch {
-  margin-top: 0;
+  margin-top: 18px;
   display: flex;
   align-items: center;
   gap: 16px;
   width: 100%;
-  min-height: 86px;
-  padding: 0 24px;
-  border-radius: 30px;
+  min-height: 58px;
+  padding: 0 18px;
+  border-radius: 18px;
   background: #ffffff;
   border: 1px solid rgba(182, 185, 192, 0.58);
   box-shadow: 0 12px 30px rgba(95, 72, 44, 0.14);
   color: #8c8c94;
-  font-size: clamp(1.2rem, 2.4vw, 2rem);
+  font-size: 15px;
   text-align: left;
 }
 
@@ -318,9 +324,9 @@
 
 .circleStrip {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   overflow-x: auto;
-  padding: 0 4px 4px;
+  padding: 0 16px 4px;
   scrollbar-width: none;
 }
 
@@ -330,7 +336,7 @@
 
 .circleItem,
 .circleItemActive {
-  width: 76px;
+  width: 78px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -340,8 +346,8 @@
 }
 
 .circleThumb {
-  width: 58px;
-  height: 58px;
+  width: 60px;
+  height: 60px;
   border-radius: 999px;
   border: 2px solid #ffffff;
   box-shadow:
@@ -366,7 +372,7 @@
   width: 100%;
   color: #667085;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -378,7 +384,7 @@
 }
 
 .sectionBlock {
-  padding: 0 2px;
+  padding: 0 16px;
 }
 
 .sectionTitle {
@@ -447,6 +453,23 @@
   font-weight: 800;
   line-height: 1.1;
   text-align: left;
+}
+
+.fastHeart {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.26);
+  color: #ffffff;
+  font-size: 15px;
+  line-height: 1;
 }
 
 .sectionGrid {
@@ -576,6 +599,7 @@
 }
 
 .favoriteWrap {
+  margin: 0 16px;
   padding: 12px 0 4px;
   border-radius: 24px;
   background: #f4fbf7;
@@ -586,6 +610,12 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px 14px;
+}
+
+@media (min-width: 900px) {
+  .favoriteGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .favoriteCard,
@@ -678,6 +708,7 @@
 
 .compactText {
   margin-top: 10px;
+  min-height: 84px;
 }
 
 .compactText h3 {
@@ -687,6 +718,10 @@
   font-weight: 900;
   letter-spacing: -0.05em;
   text-shadow: 0 7px 18px rgba(0, 0, 0, 0.14);
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .compactText p {
@@ -694,6 +729,10 @@
   color: rgba(255, 249, 242, 0.88);
   font-size: 0.86rem;
   line-height: 1.35;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .compactMediaWrap {
@@ -774,15 +813,15 @@
 .floatingCartBar {
   position: fixed;
   left: 50%;
-  bottom: 18px;
+  bottom: 12px;
   transform: translateX(-50%);
-  width: min(1120px, calc(100vw - 20px));
-  padding: 12px 14px;
+  width: min(1120px, calc(100vw - 32px));
+  padding: 12px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  border-radius: 24px;
+  gap: 12px;
+  border-radius: 18px;
   background: #ef4f5f;
   box-shadow: 0 16px 32px rgba(161, 49, 63, 0.28);
   color: #ffffff;
@@ -798,49 +837,44 @@
 
 .avatarStack {
   position: relative;
-  width: 74px;
-  height: 44px;
+  width: 68px;
+  height: 34px;
   flex-shrink: 0;
 }
 
 .avatarChip {
   position: absolute;
   top: 0;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   border: 3px solid rgba(255, 255, 255, 0.88);
   color: #ffffff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
 }
 
 .floatingCartInfo strong {
   display: block;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
-}
-
-.floatingCartInfo p {
-  margin-top: 2px;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 12px;
 }
 
 .floatingCartAction {
-  min-width: 116px;
-  height: 48px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.18);
+  gap: 2px;
   color: #ffffff;
   font-size: 15px;
   font-weight: 800;
+}
+
+.cartChevron {
+  width: 22px;
+  height: 22px;
 }
 
 .statusCard {
@@ -876,16 +910,27 @@
 
 @media (max-width: 900px) {
   .hero {
-    min-height: 520px;
+    min-height: 430px;
   }
 
   .heroContent {
-    grid-template-columns: 1fr;
-    align-items: start;
+    grid-template-columns: minmax(0, 1.15fr) minmax(150px, 0.85fr);
   }
 
   .offerMediaWrap {
-    justify-content: flex-start;
+    justify-content: flex-end;
+  }
+
+  .offerText {
+    min-height: 0;
+  }
+
+  .offerText h2 {
+    min-height: 0;
+  }
+
+  .offerText p {
+    min-height: 0;
   }
 
   .sectionGrid {
@@ -904,42 +949,55 @@
 
   .hero {
     border-radius: 0 0 34px 34px;
-    padding: 30px 18px 28px;
-    min-height: 500px;
+    padding: 20px 16px 26px;
+    min-height: 390px;
   }
 
   .profileAvatar {
-    width: 86px;
-    height: 86px;
+    width: 80px;
+    height: 80px;
+  }
+
+  .profileIcon {
+    width: 46px;
+    height: 46px;
+  }
+
+  .heroSearch {
+    margin-top: 18px;
+    min-height: 56px;
+    padding: 0 16px;
+    border-radius: 20px;
+    font-size: 15px;
+  }
+
+  .heroContent {
+    margin-top: 10px;
+    min-height: 214px;
+    grid-template-columns: minmax(0, 1.16fr) minmax(126px, 0.84fr);
+    gap: 12px;
   }
 
   .offerText {
-    margin-top: 12px;
+    margin-top: 10px;
   }
 
   .offerText h2 {
-    font-size: 3rem;
+    font-size: 1.82rem;
   }
 
   .offerText p {
-    font-size: 1.05rem;
+    font-size: 0.92rem;
   }
 
   .offerMedia,
   .offerValueVisual {
-    width: 156px;
-    border-radius: 30px;
-  }
-
-  .heroSearch {
-    min-height: 74px;
-    padding: 0 18px;
-    border-radius: 26px;
-    font-size: 1rem;
+    width: 138px;
+    border-radius: 24px;
   }
 
   .heroSpacer {
-    min-height: 250px;
+    min-height: 214px;
   }
 
   .fastGrid {
@@ -961,29 +1019,24 @@
   }
 
   .floatingCartBar {
-    width: calc(100vw - 16px);
-    padding: 10px 12px;
-    border-radius: 22px;
-  }
-
-  .floatingCartAction {
-    min-width: 104px;
-    height: 44px;
+    width: calc(100vw - 32px);
+    padding: 12px 16px;
+    border-radius: 18px;
   }
 }
 
 @media (max-width: 440px) {
   .hero {
-    min-height: 470px;
+    min-height: 378px;
   }
 
   .offerText h2 {
-    font-size: 2.55rem;
+    font-size: 1.62rem;
   }
 
   .offerMedia,
   .offerValueVisual {
-    width: 132px;
+    width: 122px;
   }
 
   .locationCard,
@@ -1001,7 +1054,7 @@
   }
 
   .heroSpacer {
-    min-height: 220px;
+    min-height: 206px;
   }
 
   .compactBanner {

@@ -193,10 +193,29 @@ function ruleMatchesBranch(branchesNode: unknown, branchId: string) {
 function normalizeImageUrl(value: unknown): string | null {
   const text = value?.toString().trim();
   if (!text) return null;
+  if (text.startsWith("data:image/")) return text;
   if (text.startsWith("http://") || text.startsWith("https://")) return text;
   if (text.startsWith("//")) return `https:${text}`;
   if (text.startsWith("/")) return `https://blackforest.vseyal.com${text}`;
   if (text.startsWith("blackforest.vseyal.com")) return `https://${text}`;
+  const lower = text.toLowerCase();
+  const looksLikeFile =
+    lower.endsWith(".png") ||
+    lower.endsWith(".jpg") ||
+    lower.endsWith(".jpeg") ||
+    lower.endsWith(".webp") ||
+    lower.endsWith(".gif") ||
+    lower.endsWith(".svg") ||
+    lower.endsWith(".avif");
+  if (
+    text.startsWith("uploads/") ||
+    text.startsWith("media/") ||
+    text.startsWith("files/") ||
+    text.startsWith("api/") ||
+    looksLikeFile
+  ) {
+    return `https://blackforest.vseyal.com/${text}`;
+  }
   return null;
 }
 
@@ -217,19 +236,26 @@ function extractImageFromAny(node: unknown): string | null {
   const preferredKeys = [
     "thumbnailURL",
     "thumbnailUrl",
+    "thumbnail",
     "url",
     "imageUrl",
     "image",
     "images",
     "photo",
     "picture",
+    "icon",
     "media",
     "file",
     "src",
     "asset",
+    "product",
   ];
   for (const key of preferredKeys) {
     const nested = extractImageFromAny(map[key]);
+    if (nested) return nested;
+  }
+  for (const value of Object.values(map)) {
+    const nested = extractImageFromAny(value);
     if (nested) return nested;
   }
   return null;
@@ -283,6 +309,26 @@ function readProductImage(productNode: unknown): string | null {
   const map = toMap(productNode);
   if (!map) return null;
   return extractImageFromAny(map.images ?? map.image ?? map.thumbnail ?? map.imageUrl ?? map);
+}
+
+function readProductImageMediaId(productNode: unknown) {
+  const map = toMap(productNode);
+  if (!map) return "";
+
+  const images = toArray(map.images);
+  if (images.length === 0) return "";
+
+  const firstImage = images[0];
+  const firstImageMap = toMap(firstImage);
+  const imageData =
+    firstImageMap && firstImageMap.image !== undefined ? firstImageMap.image : firstImage;
+
+  if (typeof imageData === "string") {
+    const value = imageData.trim();
+    return normalizeImageUrl(value) ? "" : value;
+  }
+
+  return readText(toMap(imageData)?.id);
 }
 
 function isProductActiveForBranch(product: DynamicMap, branchId?: string) {
@@ -362,6 +408,7 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
     description: categoryName ? `${categoryName} · ${isVeg ? "Veg" : "Non Veg"}` : "",
     accent: accentFor(id),
     imageUrl,
+    imageMediaId: readProductImageMediaId(map),
     isVeg,
   };
 }
@@ -468,32 +515,74 @@ async function hydrateProducts(products: Product[]) {
         .filter((id) => id && looksLikeObjectId(id)),
     ),
   ];
-  if (categoryIds.length === 0) return products;
-
-  const params = new URLSearchParams();
-  params.set("where[id][in]", categoryIds.join(","));
-  params.set("depth", "1");
-  params.set("limit", String(Math.max(categoryIds.length, 1)));
-
-  const decoded = await fetchJson(`/categories?${params.toString()}`);
   const categoriesById = new Map<string, CategoryCard>();
-  for (const rawCategory of toArray(decoded)) {
-    const normalized = readCategoryEntry(rawCategory);
-    if (!normalized) continue;
-    categoriesById.set(normalized.id, normalized);
+  const missingMediaIds = [
+    ...new Set(
+      products
+        .map((product) => (!product.imageUrl && product.imageMediaId ? product.imageMediaId : ""))
+        .filter(Boolean),
+    ),
+  ];
+  const mediaUrlById = new Map<string, string>();
+
+  if (categoryIds.length > 0 || missingMediaIds.length > 0) {
+    const requests: Promise<unknown>[] = [];
+
+    if (categoryIds.length > 0) {
+      const params = new URLSearchParams();
+      params.set("where[id][in]", categoryIds.join(","));
+      params.set("depth", "1");
+      params.set("limit", String(Math.max(categoryIds.length, 1)));
+      requests.push(fetchJson(`/categories?${params.toString()}`));
+    } else {
+      requests.push(Promise.resolve(null));
+    }
+
+    if (missingMediaIds.length > 0) {
+      const params = new URLSearchParams();
+      params.set("where[id][in]", missingMediaIds.join(","));
+      params.set("depth", "0");
+      params.set("limit", String(Math.max(missingMediaIds.length, 1)));
+      requests.push(fetchJson(`/media?${params.toString()}`));
+    } else {
+      requests.push(Promise.resolve(null));
+    }
+
+    const [categoriesPayload, mediaPayload] = await Promise.all(requests);
+
+    for (const rawCategory of toArray(toMap(categoriesPayload)?.docs ?? categoriesPayload)) {
+      const normalized = readCategoryEntry(rawCategory);
+      if (!normalized) continue;
+      categoriesById.set(normalized.id, normalized);
+    }
+
+    for (const rawMedia of toArray(toMap(mediaPayload)?.docs ?? mediaPayload)) {
+      const media = toMap(rawMedia);
+      if (!media) continue;
+
+      const id = readText(media.id);
+      const url =
+        normalizeImageUrl(media.thumbnailURL) ??
+        normalizeImageUrl(media.thumbnailUrl) ??
+        normalizeImageUrl(media.url);
+      if (!id || !url) continue;
+      mediaUrlById.set(id, url);
+    }
   }
 
   return products.map((product) => {
     const category = categoriesById.get(product.categoryId);
-    if (!category) return product;
-
     return {
       ...product,
+      imageUrl:
+        product.imageUrl ||
+        (product.imageMediaId ? mediaUrlById.get(product.imageMediaId) ?? "" : ""),
       category:
-        product.category === "Products" || product.category === product.categoryId
+        category &&
+        (product.category === "Products" || product.category === product.categoryId)
           ? category.name
           : product.category,
-      categoryImageUrl: product.categoryImageUrl ?? category.imageUrl,
+      categoryImageUrl: product.categoryImageUrl ?? category?.imageUrl,
     };
   });
 }
@@ -727,6 +816,27 @@ function readOfferImage(node: unknown) {
   return extractImageFromAny(map.images ?? map.image ?? map.thumbnail ?? map);
 }
 
+function readOfferImageMediaId(node: unknown) {
+  const map = toMap(node);
+  if (!map) return "";
+
+  const images = toArray(map.images);
+  if (images.length === 0) return "";
+
+  const firstImage = images[0];
+  const imageData =
+    toMap(firstImage) && toMap(firstImage)?.image !== undefined
+      ? toMap(firstImage)?.image
+      : firstImage;
+
+  if (typeof imageData === "string") {
+    const value = imageData.trim();
+    return normalizeImageUrl(value) ? "" : value;
+  }
+
+  return readText(toMap(imageData)?.id);
+}
+
 function buildOfferSlides(settings: unknown): OfferSlide[] {
   const config = toMap(settings);
   if (!config) return [];
@@ -763,6 +873,7 @@ function buildOfferSlides(settings: unknown): OfferSlide[] {
           : `Buy ${buyQty} ${buyName} & Get ${freeQty} ${freeName} FREE`,
         subtitle: "Special combo offer just for you!",
         imageUrl: readOfferImage(freeProduct),
+        imageMediaId: readOfferImageMediaId(freeProduct),
         visualSymbol: "+",
       });
     }
@@ -798,6 +909,7 @@ function buildOfferSlides(settings: unknown): OfferSlide[] {
             ? `Was ₹${Math.round(originalPrice)} | Save ₹${Math.round(effectiveDiscount)}`
             : "Exclusive Deal!",
         imageUrl: readOfferImage(product),
+        imageMediaId: readOfferImageMediaId(product),
         visualSymbol: "₹",
       });
     }
@@ -817,6 +929,7 @@ function buildOfferSlides(settings: unknown): OfferSlide[] {
         title: `FREE ${productName}?`,
         subtitle: "You might be our lucky winner today!",
         imageUrl: readOfferImage(product),
+        imageMediaId: readOfferImageMediaId(product),
         visualSymbol: "?",
       });
     }
@@ -861,21 +974,62 @@ function buildOfferSlides(settings: unknown): OfferSlide[] {
   return slides;
 }
 
+async function hydrateOfferSlides(slides: OfferSlide[]): Promise<OfferSlide[]> {
+  const pendingIds = slides
+    .map((slide) => slide.imageUrl || !slide.imageMediaId ? "" : slide.imageMediaId)
+    .filter(Boolean);
+
+  if (pendingIds.length === 0) {
+    return slides;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      "where[id][in]": Array.from(new Set(pendingIds)).join(","),
+      limit: String(pendingIds.length),
+      depth: "0",
+    });
+    const payload = await fetchJson(`/media?${params.toString()}`);
+    const docs = toArray(toMap(payload)?.docs ?? payload);
+    const mediaUrlById = new Map<string, string>();
+
+    for (const rawDoc of docs) {
+      const doc = toMap(rawDoc);
+      if (!doc) continue;
+
+      const id = readText(doc.id);
+      const url =
+        normalizeImageUrl(doc.thumbnailURL) ??
+        normalizeImageUrl(doc.thumbnailUrl) ??
+        normalizeImageUrl(doc.url);
+      if (!id || !url) continue;
+      mediaUrlById.set(id, url);
+    }
+
+    return slides.map((slide) =>
+      slide.imageUrl || !slide.imageMediaId || !mediaUrlById.has(slide.imageMediaId)
+        ? slide
+        : { ...slide, imageUrl: mediaUrlById.get(slide.imageMediaId) ?? slide.imageUrl },
+    );
+  } catch {
+    return slides;
+  }
+}
+
 export async function findBranchByCoordinates(
   latitude: number,
   longitude: number,
   requiredBranchId?: string,
 ): Promise<BranchLookupResult> {
-  const settings = await fetchJson("/globals/branch-geo-settings");
+  const settings = await fetchJson("/globals/branch-geo-settings?depth=0");
   const locations = toArray(toMap(settings)?.locations);
 
   for (const rawLocation of locations) {
     const location = toMap(rawLocation);
     if (!location) continue;
 
-    const branch = toMap(location.branch);
     const branchId = extractRefId(location.branch);
-    const branchName = readText(branch?.name, location.branchName, location.name);
+    const branchName = readText(location.branchName, location.name);
     const locationLatitude =
       typeof location.latitude === "number" ? location.latitude : toNumber(location.latitude);
     const locationLongitude =
@@ -885,7 +1039,7 @@ export async function findBranchByCoordinates(
     const radiusMeters =
       typeof location.radius === "number" ? location.radius : toNumber(location.radius) || 100;
 
-    if (!branchId || !branchName) continue;
+    if (!branchId) continue;
     if (requiredBranchId && branchId !== requiredBranchId) continue;
     if (!Number.isFinite(locationLatitude) || !Number.isFinite(locationLongitude)) continue;
 
@@ -897,10 +1051,11 @@ export async function findBranchByCoordinates(
     );
 
     if (distanceMeters <= radiusMeters) {
+      const matchedBranchName = branchName || (await fetchBranchMeta(branchId)).name || "VSeyal";
       return {
         matched: true,
         branchId,
-        branchName,
+        branchName: matchedBranchName,
         radiusMeters,
         distanceMeters: Math.round(distanceMeters),
       };
@@ -930,11 +1085,12 @@ export async function getHomePageData(inputBranchId?: string): Promise<HomePageD
     fetchFavoriteCategories(widgetSettings, branchId),
     fetchTopCategories(widgetSettings, branchId),
   ]);
+  const offerSlides = await hydrateOfferSlides(buildOfferSlides(offerSettings));
 
   return {
     branchId,
     branchName: branchMeta.name,
-    offerSlides: buildOfferSlides(offerSettings),
+    offerSlides,
     billingCategories,
     topCategories,
     favoriteCategoriesTitle: favoriteCategoryPayload.title,
@@ -956,11 +1112,12 @@ export async function getCategoriesPageData(
     fetchAllCategories(branchMeta.companyId),
     fetchTopCategories(widgetSettings, branchId),
   ]);
+  const offerSlides = await hydrateOfferSlides(buildOfferSlides(offerSettings));
 
   return {
     branchId,
     branchName: branchMeta.name,
-    offerSlides: buildOfferSlides(offerSettings),
+    offerSlides,
     categories,
     topCategories,
   };

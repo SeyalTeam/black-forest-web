@@ -194,7 +194,6 @@ export default function CategoriesPage() {
                         : undefined,
                     }}
                   />
-                  <div className={styles.categoryHeart}>♡</div>
                   <div className={styles.categoryCardLabel}>{category.name}</div>
                 </Link>
               ))}

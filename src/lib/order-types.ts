@@ -8,6 +8,7 @@ export type Product = {
   description: string;
   accent: string;
   imageUrl: string;
+  imageMediaId?: string;
   isVeg: boolean;
 };
 
@@ -32,6 +33,7 @@ export type OfferSlide = {
   title: string;
   subtitle: string;
   imageUrl?: string | null;
+  imageMediaId?: string;
   valueText?: string;
   visualSymbol?: string;
   startColor: string;

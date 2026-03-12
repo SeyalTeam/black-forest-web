@@ -14,8 +14,9 @@ function buildCardBackground(product: Product) {
     return { backgroundImage: product.accent };
   }
 
+  const safeImageUrl = encodeURI(product.imageUrl);
   return {
-    backgroundImage: `${product.accent}, url("${product.imageUrl}")`,
+    backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.16)), url("${safeImageUrl}")`,
   };
 }
 
@@ -39,7 +40,6 @@ export default function ProductsPage() {
   const [pageData, setPageData] = useState<ProductsPageData | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -201,7 +201,6 @@ export default function ProductsPage() {
             <div className={styles.sectionGrid}>
               {visibleProducts.map((product) => {
                 const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
-                const isFavorite = favoriteIds.includes(product.id);
 
                 return (
                   <article key={product.id} className={styles.productCard}>
@@ -209,20 +208,6 @@ export default function ProductsPage() {
                       <span className={styles.productArtLabel}>
                         {product.imageUrl ? "" : productAvatarLabel(product.name)}
                       </span>
-                      <button
-                        type="button"
-                        className={`${styles.favoriteButton} ${isFavorite ? styles.favoriteButtonActive : ""}`}
-                        onClick={() =>
-                          setFavoriteIds((current) =>
-                            current.includes(product.id)
-                              ? current.filter((id) => id !== product.id)
-                              : [...current, product.id],
-                          )
-                        }
-                        aria-label={isFavorite ? "Remove favorite" : "Add favorite"}
-                      >
-                        {isFavorite ? "♥" : "♡"}
-                      </button>
                     </div>
 
                     <div className={styles.productBody}>

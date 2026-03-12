@@ -15,6 +15,12 @@ export async function GET(request: NextRequest) {
     return Response.json(payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to resolve branch";
+    console.error("branch-from-location failed", {
+      message,
+      lat: request.nextUrl.searchParams.get("lat"),
+      lng: request.nextUrl.searchParams.get("lng"),
+      branchId: request.nextUrl.searchParams.get("branchId"),
+    });
     return Response.json({ message }, { status: 500 });
   }
 }

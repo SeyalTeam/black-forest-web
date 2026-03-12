@@ -1,25 +1,36 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { readBranchSession } from "@/components/branch-session";
-import { ProfileIcon, VegIcon } from "@/components/menu-icons";
-import { productAvatarLabel, useOrder } from "@/components/order-provider";
+import {
+  BackIcon,
+  BagIcon,
+  BellIcon,
+  CartIcon,
+  NoteAddIcon,
+  NoteSavedIcon,
+  PinIcon,
+  VegIcon,
+} from "@/components/menu-icons";
+import { useOrder } from "@/components/order-provider";
 import styles from "./kot-shell.module.css";
 
 export default function KotPage() {
+  const router = useRouter();
   const {
     cartItems,
     totalItems,
-    totalAmount,
     addItem,
     decreaseItem,
-    cookingRequest,
+    cookingRequests,
     updateCookingRequest,
   } = useOrder();
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingRequestItemId, setEditingRequestItemId] = useState<string | null>(null);
+  const [requestDraft, setRequestDraft] = useState("");
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [branchName, setBranchName] = useState("VSeyal");
+  const [sharedTableNumber, setSharedTableNumber] = useState("");
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -38,11 +49,31 @@ export default function KotPage() {
     };
   }, []);
 
-  const summaryLabel = totalItems === 1 ? "1 item added" : `${totalItems} items added`;
-  const previewItems = useMemo(
-    () => cartItems.slice(Math.max(0, cartItems.length - 2)),
-    [cartItems],
-  );
+  const summaryLabel = totalItems === 1 ? "1 item" : `${totalItems} items`;
+  const activeEditingRequestItemId =
+    editingRequestItemId && cartItems.some((item) => item.id === editingRequestItemId)
+      ? editingRequestItemId
+      : null;
+  const closeRequestEditor = () => {
+    setEditingRequestItemId(null);
+    setRequestDraft("");
+  };
+  const returnToMenu = () => {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push("/");
+  };
+  const saveRequestEditor = () => {
+    if (!activeEditingRequestItemId) {
+      return;
+    }
+
+    updateCookingRequest(activeEditingRequestItemId, requestDraft);
+    closeRequestEditor();
+  };
 
   if (hasAccess === false) {
     return (
@@ -70,28 +101,36 @@ export default function KotPage() {
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
-        <header className={styles.topBar}>
-          <div className={styles.branchWrap}>
-            <div className={styles.avatar}>
-              <ProfileIcon className={styles.profileIcon} />
-            </div>
-            <div>
-              <div className={styles.branchMeta}>TABLE ORDER</div>
-              <h1 className={styles.branchName}>{branchName}</h1>
-            </div>
+        <header className={styles.header}>
+          <button
+            type="button"
+            className={styles.headerBackButton}
+            aria-label="Back to menu"
+            onClick={returnToMenu}
+          >
+            <BackIcon className={styles.headerBackIcon} />
+          </button>
+
+          <h1 className={styles.headerTitle}>{branchName}</h1>
+
+          <div className={styles.headerActions}>
+            <button type="button" className={styles.headerIconButton} aria-label="Notifications">
+              <BellIcon className={styles.headerIcon} />
+            </button>
+            <button type="button" className={styles.headerIconButton} aria-label="Cart">
+              <CartIcon className={styles.headerIcon} />
+              {totalItems > 0 ? <span className={styles.headerBadge}>{totalItems}</span> : null}
+            </button>
           </div>
-          <Link href="/" className={styles.backLink}>
-            Back to menu
-          </Link>
         </header>
 
         <div className={styles.chipRow}>
           <div className={styles.chip}>
-            <span className={styles.chipIcon}>⌂</span>
+            <PinIcon className={styles.chipIconSvg} />
             Shared Tables
           </div>
           <div className={styles.chip}>
-            <span className={styles.chipIcon}>👜</span>
+            <BagIcon className={styles.chipIconSvg} />
             {summaryLabel}
           </div>
         </div>
@@ -103,88 +142,126 @@ export default function KotPage() {
           </div>
 
           <div className={styles.itemList}>
-            {cartItems.map((item) => (
-              <article key={item.id} className={styles.itemRow}>
-                <div className={styles.itemLead}>
-                  <VegIcon isVeg={item.isVeg} />
-                  <div className={styles.itemMeta}>
-                    <h3>{item.name}</h3>
-                    <p>{item.description}</p>
-                  </div>
-                </div>
+            {cartItems.length > 0 ? (
+              cartItems.map((item, index) => {
+                const itemNote = cookingRequests[item.id]?.trim() ?? "";
+                const hasSavedNote = itemNote.length > 0;
 
-                <div className={styles.itemActions}>
-                  <div className={styles.qtyBox}>
-                    <button type="button" onClick={() => decreaseItem(item.id)}>
-                      −
+                return (
+                  <div key={item.id} className={styles.itemGroup}>
+                  <article className={styles.itemRow}>
+                    <div className={styles.itemLead}>
+                      <VegIcon isVeg={item.isVeg} />
+                      <div className={styles.itemMeta}>
+                        <h3>{item.name}</h3>
+                        {hasSavedNote ? (
+                          <div className={styles.itemSavedNote}>{itemNote}</div>
+                        ) : index === 0 ? (
+                          <div className={styles.itemHintText}>
+                            Tap
+                            <NoteAddIcon className={styles.itemHintInlineIcon} />
+                            Icon to add a cooking note
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className={styles.noteButton}
+                      onClick={() => {
+                        setEditingRequestItemId(item.id);
+                        setRequestDraft(cookingRequests[item.id] ?? "");
+                      }}
+                      aria-label="Cooking requests"
+                    >
+                      {hasSavedNote ? (
+                        <NoteSavedIcon className={`${styles.noteIcon} ${styles.noteSavedIcon}`} />
+                      ) : (
+                        <NoteAddIcon className={styles.noteIcon} />
+                      )}
                     </button>
-                    <span className={styles.qtyValue}>{item.quantity}</span>
-                    <button type="button" onClick={() => addItem(item)}>
-                      +
-                    </button>
+
+                    <div className={styles.itemActions}>
+                      <div className={styles.qtyBox}>
+                        <button type="button" onClick={() => decreaseItem(item.id)}>
+                          −
+                        </button>
+                        <span className={styles.qtyValue}>{item.quantity}</span>
+                        <button type="button" onClick={() => addItem(item)}>
+                          +
+                        </button>
+                      </div>
+                      <div className={styles.itemPrice}>₹{item.price * item.quantity}</div>
+                    </div>
+                  </article>
                   </div>
-                  <div className={styles.itemPrice}>₹{item.price * item.quantity}</div>
-                </div>
-              </article>
-            ))}
+                );
+              })
+            ) : (
+              <div className={styles.emptyState}>No items added yet.</div>
+            )}
           </div>
 
-          <div className={styles.inlineActions}>
-            <Link href="/" className={styles.inlineAction}>
-              <span>＋</span>
-              Add Items
-            </Link>
-            <button
-              type="button"
-              className={styles.inlineAction}
-              onClick={() => setIsEditorOpen((current) => !current)}
-            >
-              <span>✎</span>
-              Cooking requests
-            </button>
-          </div>
-
-          {isEditorOpen ? (
-            <div className={styles.requestPanel}>
-              <label htmlFor="cooking-request">Cooking request</label>
-              <textarea
-                id="cooking-request"
-                value={cookingRequest}
-                onChange={(event) => updateCookingRequest(event.target.value)}
-                placeholder="Example: less spicy, cut into 4 pieces, no onion."
-              />
-            </div>
-          ) : null}
+          <button type="button" className={styles.addMoreButton} onClick={returnToMenu}>
+            <span>＋</span>
+            Add More Items
+          </button>
         </section>
-
-        <label className={styles.tableInput}>
-          <span>Shared table number</span>
-          <input defaultValue="T12" placeholder="Enter shared table number" />
-        </label>
       </section>
 
-      <div className={styles.orderBar}>
-        <div className={styles.orderPreview}>
-          <div className={styles.previewStack}>
-            {previewItems.map((item, index) => (
-              <div
-                key={item.id}
-                className={styles.previewAvatar}
-                style={{ background: item.accent, left: `${index * 20}px` }}
+      <div className={styles.footerDock}>
+        <div className={styles.footerInner}>
+          <input
+            value={sharedTableNumber}
+            onChange={(event) => setSharedTableNumber(event.target.value)}
+            className={styles.sharedTableInput}
+            placeholder="Enter shared table number"
+          />
+          <button type="button" className={styles.orderButton}>
+            ORDER
+          </button>
+        </div>
+      </div>
+
+      {activeEditingRequestItemId ? (
+        <div className={styles.modalBackdrop} onClick={closeRequestEditor}>
+          <div
+            className={styles.noteModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="special-note-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="special-note-title" className={styles.noteModalTitle}>
+              Special Note
+            </h2>
+            <textarea
+              value={requestDraft}
+              onChange={(event) => setRequestDraft(event.target.value)}
+              className={styles.noteModalInput}
+              placeholder="Enter instructions..."
+              autoFocus
+            />
+            <div className={styles.noteModalActions}>
+              <button
+                type="button"
+                className={styles.noteModalButton}
+                onClick={closeRequestEditor}
               >
-                {productAvatarLabel(item.name)}
-              </div>
-            ))}
-          </div>
-          <div>
-            <strong>{summaryLabel}</strong>
-            <p>₹{totalAmount} ready to send</p>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`${styles.noteModalButton} ${styles.noteModalButtonPrimary}`}
+                onClick={saveRequestEditor}
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
-        <button type="button" className={styles.orderButton}>
-          Order here
-        </button>
-      </div>
+      ) : null}
     </main>
   );
 }

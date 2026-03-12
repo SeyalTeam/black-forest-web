@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { clearBranchSession, writeBranchSession } from "@/components/branch-session";
 import {
+  clearBranchSession,
+  readBranchSession,
+  writeBranchSession,
+} from "@/components/branch-session";
+import {
+  ChevronRightIcon,
   MicIcon,
   PinIcon,
   ProfileIcon,
@@ -30,15 +35,8 @@ type LocationStatus =
   | "unsupported"
   | "skipped";
 
-function orderProducts(products: Product[], favoriteIds: string[]) {
-  if (favoriteIds.length === 0) return products;
-  const byId = new Map(products.map((product) => [product.id, product]));
-  const favoriteProducts = favoriteIds
-    .map((id) => byId.get(id))
-    .filter((product): product is Product => Boolean(product));
-  const remainingProducts = products.filter((product) => !favoriteIds.includes(product.id));
-  return [...favoriteProducts, ...remainingProducts];
-}
+const HOME_CACHE_KEY_PREFIX = "blackforest-order-web-home-data:";
+const HOME_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function extractFastMovementCategories(sections: RuleSection[]) {
   const orderedCategories: CategoryCard[] = [];
@@ -73,8 +71,9 @@ function buildCardBackground(product: Product) {
     return { backgroundImage: product.accent };
   }
 
+  const safeImageUrl = encodeURI(product.imageUrl);
   return {
-    backgroundImage: `${product.accent}, url("${product.imageUrl}")`,
+    backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.16)), url("${safeImageUrl}")`,
   };
 }
 
@@ -86,12 +85,56 @@ function productHref(categoryId: string, categoryName: string, from: "home" | "c
   return `/products/${encodeURIComponent(categoryId)}?${query.toString()}`;
 }
 
+function readCachedHomeData(branchId: string): HomePageData | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = window.sessionStorage.getItem(`${HOME_CACHE_KEY_PREFIX}${branchId}`);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      savedAt?: number;
+      data?: HomePageData;
+    };
+    if (
+      !parsed.data ||
+      !parsed.savedAt ||
+      Date.now() - parsed.savedAt > HOME_CACHE_TTL_MS
+    ) {
+      window.sessionStorage.removeItem(`${HOME_CACHE_KEY_PREFIX}${branchId}`);
+      return null;
+    }
+
+    return parsed.data;
+  } catch {
+    window.sessionStorage.removeItem(`${HOME_CACHE_KEY_PREFIX}${branchId}`);
+    return null;
+  }
+}
+
+function writeCachedHomeData(branchId: string, data: HomePageData) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.setItem(
+    `${HOME_CACHE_KEY_PREFIX}${branchId}`,
+    JSON.stringify({
+      savedAt: Date.now(),
+      data,
+    }),
+  );
+}
+
 export default function HomePage() {
-  const { cartItems, totalItems, totalAmount, addItem, decreaseItem } = useOrder();
+  const { cartItems, totalItems, addItem, decreaseItem } = useOrder();
   const [homeData, setHomeData] = useState<HomePageData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [branchNameOverride, setBranchNameOverride] = useState("");
   const [requestedBranchId, setRequestedBranchId] = useState("");
@@ -206,6 +249,23 @@ export default function HomePage() {
       if (isDisposed) return;
       setRequestedBranchId(nextBranchId);
 
+      const cachedSession = readBranchSession();
+      if (cachedSession?.branchId && (!nextBranchId || cachedSession.branchId === nextBranchId)) {
+        setBranchId(cachedSession.branchId);
+        setBranchNameOverride(cachedSession.branchName);
+        setLocationStatus("resolved");
+        setLocationMessage(
+          `${
+            cachedSession.branchName || "Selected"
+          } branch restored from your previous location check.`,
+        );
+        return;
+      }
+
+      if (cachedSession?.branchId && nextBranchId && cachedSession.branchId !== nextBranchId) {
+        clearBranchSession();
+      }
+
       if (!("geolocation" in navigator)) {
         blockWebsite(
           "Location is required on this browser to open the website.",
@@ -263,8 +323,16 @@ export default function HomePage() {
     let isDisposed = false;
 
     const loadHomeData = async () => {
-      setIsLoading(true);
       setErrorMessage("");
+      const cachedData = readCachedHomeData(branchId);
+
+      if (cachedData && !isDisposed) {
+        setHomeData(cachedData);
+        setIsLoading(false);
+      } else {
+        setHomeData(null);
+        setIsLoading(true);
+      }
 
       try {
         const suffix = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
@@ -278,11 +346,14 @@ export default function HomePage() {
         const payload = (await response.json()) as HomePageData;
         if (isDisposed) return;
         setHomeData(payload);
+        writeCachedHomeData(branchId, payload);
       } catch (error) {
         if (isDisposed) return;
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to load homepage data",
-        );
+        if (!cachedData) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to load homepage data",
+          );
+        }
       } finally {
         if (!isDisposed) {
           setIsLoading(false);
@@ -296,18 +367,24 @@ export default function HomePage() {
     };
   }, [branchId]);
 
-  const summaryLabel = totalItems === 1 ? "1 item ready" : `${totalItems} items ready`;
+  const summaryLabel = totalItems === 1 ? "1 item added" : `${totalItems} items added`;
   const previewItems = useMemo(
     () => cartItems.slice(Math.max(0, cartItems.length - 3)),
     [cartItems],
   );
   const orderedSections = useMemo(
+    () => homeData?.ruleSections ?? [],
+    [homeData?.ruleSections],
+  );
+  const orderedProducts = useMemo(
     () =>
-      (homeData?.ruleSections ?? []).map((section) => ({
-        ...section,
-        products: orderProducts(section.products, favoriteIds),
-      })),
-    [favoriteIds, homeData?.ruleSections],
+      orderedSections.flatMap((section, sectionIndex) =>
+        section.products.map((product, productIndex) => ({
+          key: `${sectionIndex}-${productIndex}-${product.id}`,
+          product,
+        })),
+      ),
+    [orderedSections],
   );
   const fastMovementCategories = useMemo(
     () => extractFastMovementCategories(orderedSections),
@@ -381,12 +458,9 @@ export default function HomePage() {
           <div className={styles.heroShade} />
 
           <div className={styles.topBar}>
-            <div>
-              <div className={styles.branchRow}>
-                <PinIcon className={styles.inlineIcon} />
-                <span>{activeBranchName.toUpperCase()}</span>
-              </div>
-              <h1 className={styles.branchName}>{activeBranchName}</h1>
+            <div className={styles.branchRow}>
+              <PinIcon className={styles.inlineIcon} />
+              <span>{activeBranchName}</span>
             </div>
 
             <div className={styles.profileAvatar}>
@@ -446,6 +520,12 @@ export default function HomePage() {
             </div>
           ) : (
             <>
+              <button type="button" className={styles.heroSearch}>
+                <SearchIcon className={styles.inlineIconLarge} />
+                <span>Search for &quot;Pizza&quot;</span>
+                <MicIcon className={styles.inlineIconLarge} />
+              </button>
+
               {activeOffer ? (
                 <div className={styles.heroContent}>
                   <div>
@@ -490,12 +570,6 @@ export default function HomePage() {
                   ))}
                 </div>
               ) : null}
-
-              <button type="button" className={styles.heroSearch}>
-                <SearchIcon className={styles.inlineIconLarge} />
-                <span>Search for &quot;Pizza&quot;</span>
-                <MicIcon className={styles.inlineIconLarge} />
-              </button>
             </>
           )}
         </section>
@@ -576,90 +650,64 @@ export default function HomePage() {
           </section>
         ) : null}
 
-        {accessGranted && !isLoading && !errorMessage && orderedSections.length === 0 ? (
+        {accessGranted && !isLoading && !errorMessage && orderedProducts.length === 0 ? (
           <section className={styles.sectionBlock}>
             <div className={styles.statusCard}>No recommended products available for this branch.</div>
           </section>
         ) : null}
 
-        {accessGranted &&
-          !isLoading &&
-          !errorMessage &&
-          orderedSections.map((section) => (
-            <section key={section.title} className={styles.sectionBlock}>
-              <div className={styles.sectionTitle}>
-                <h2>
-                  {section.title} ({section.products.length})
-                </h2>
-              </div>
-              <div className={styles.sectionGrid}>
-                {section.products.map((product) => {
-                  const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
-                  const isFavorite = favoriteIds.includes(product.id);
+        {accessGranted && !isLoading && !errorMessage && orderedProducts.length > 0 ? (
+          <section className={styles.sectionBlock}>
+            <div className={styles.sectionGrid}>
+              {orderedProducts.map(({ key, product }) => {
+                const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
 
-                  return (
-                    <article key={product.id} className={styles.productCard}>
-                      <div className={styles.productArt} style={buildCardBackground(product)}>
-                        <span className={styles.productArtLabel}>
-                          {product.imageUrl ? "" : productAvatarLabel(product.name)}
-                        </span>
-                        <button
-                          type="button"
-                          className={`${styles.favoriteButton} ${isFavorite ? styles.favoriteButtonActive : ""}`}
-                          onClick={() =>
-                            setFavoriteIds((current) =>
-                              current.includes(product.id)
-                                ? current.filter((id) => id !== product.id)
-                                : [...current, product.id],
-                            )
-                          }
-                          aria-label={isFavorite ? "Remove favorite" : "Add favorite"}
-                        >
-                          {isFavorite ? "♥" : "♡"}
-                        </button>
+                return (
+                  <article key={key} className={styles.productCard}>
+                    <div className={styles.productArt} style={buildCardBackground(product)}>
+                      <span className={styles.productArtLabel}>
+                        {product.imageUrl ? "" : productAvatarLabel(product.name)}
+                      </span>
+                    </div>
+
+                    <div className={styles.productBody}>
+                      <div className={styles.productMetaRow}>
+                        <VegIcon isVeg={product.isVeg} />
                       </div>
+                      <div className={styles.productTitle}>{product.name}</div>
+                      <div className={styles.productFooter}>
+                        <div className={styles.priceText}>₹{product.price}</div>
 
-                      <div className={styles.productBody}>
-                        <div className={styles.productMetaRow}>
-                          <VegIcon isVeg={product.isVeg} />
-                        </div>
-                        <div className={styles.productTitle}>{product.name}</div>
-                        <div className={styles.productFooter}>
-                          <div className={styles.priceText}>₹{product.price}</div>
-
-                          {quantity === 0 ? (
-                            <button
-                              type="button"
-                              className={styles.addButton}
-                              onClick={() => addItem(product)}
-                            >
-                              ADD
+                        {quantity === 0 ? (
+                          <button
+                            type="button"
+                            className={styles.addButton}
+                            onClick={() => addItem(product)}
+                          >
+                            ADD
+                          </button>
+                        ) : (
+                          <div className={styles.qtyControl}>
+                            <button type="button" onClick={() => decreaseItem(product.id)}>
+                              −
                             </button>
-                          ) : (
-                            <div className={styles.qtyControl}>
-                              <button type="button" onClick={() => decreaseItem(product.id)}>
-                                −
-                              </button>
-                              <span className={styles.qtyValue}>{quantity}</span>
-                              <button type="button" onClick={() => addItem(product)}>
-                                +
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                            <span className={styles.qtyValue}>{quantity}</span>
+                            <button type="button" onClick={() => addItem(product)}>
+                              +
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
 
         {accessGranted && (homeData?.favoriteCategories ?? []).length > 0 ? (
           <section className={styles.favoriteWrap}>
-            <div className={styles.sectionTitle}>
-              <h2>{homeData?.favoriteCategoriesTitle ?? "Favorite Categories"}</h2>
-            </div>
             <div className={styles.favoriteGrid}>
               {(homeData?.favoriteCategories ?? []).map((category) => (
                 <Link
@@ -675,7 +723,6 @@ export default function HomePage() {
                         : undefined,
                     }}
                   />
-                  <div className={`${styles.favoriteHeart} ${styles.favoriteHeartActive}`}>♥</div>
                   <div className={styles.favoriteCardLabel}>{category.name}</div>
                 </Link>
               ))}
@@ -692,20 +739,27 @@ export default function HomePage() {
                 <div
                   key={item.id}
                   className={styles.avatarChip}
-                  style={{ background: item.accent, left: `${index * 18}px` }}
+                  style={{
+                    background: item.imageUrl
+                      ? `linear-gradient(rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.06)), url("${item.imageUrl}")`
+                      : item.accent,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    left: `${index * 17}px`,
+                  }}
                 >
-                  {productAvatarLabel(item.name)}
+                  {item.imageUrl ? "" : productAvatarLabel(item.name)}
                 </div>
               ))}
             </div>
             <div>
               <strong>{summaryLabel}</strong>
-              <p>₹{totalAmount} total</p>
             </div>
           </div>
 
           <Link href="/kot" className={styles.floatingCartAction}>
-            View Cart
+            <span>View cart</span>
+            <ChevronRightIcon className={styles.cartChevron} />
           </Link>
         </div>
       ) : null}

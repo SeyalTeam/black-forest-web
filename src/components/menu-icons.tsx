@@ -62,6 +62,133 @@ export function BackIcon({ className }: IconProps) {
   );
 }
 
+export function ChevronRightIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path
+        d="M9 5.5 15.5 12 9 18.5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2.4"
+      />
+    </svg>
+  );
+}
+
+export function BellIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path
+        d="M12 4.5a4.5 4.5 0 0 0-4.5 4.5v2.1c0 .9-.3 1.8-.9 2.5l-1.2 1.6c-.4.5-.1 1.3.6 1.3h12c.7 0 1-.8.6-1.3l-1.2-1.6c-.6-.7-.9-1.6-.9-2.5V9A4.5 4.5 0 0 0 12 4.5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 18.5a2.1 2.1 0 0 0 4 0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function CartIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <circle cx="9" cy="19" r="1.7" fill="currentColor" />
+      <circle cx="17" cy="19" r="1.7" fill="currentColor" />
+      <path
+        d="M3.5 5h2.2l1.4 8.2a1.2 1.2 0 0 0 1.2 1h7.9a1.2 1.2 0 0 0 1.2-.9L19 8H7.1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function BagIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path
+        d="M7.5 8.5V7a4.5 4.5 0 0 1 9 0v1.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M6 8.5h12l-.7 9.1a1.5 1.5 0 0 1-1.5 1.4H8.2a1.5 1.5 0 0 1-1.5-1.4L6 8.5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function NoteAddIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path
+        d="M7 4.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V6A1.5 1.5 0 0 1 7.5 4.5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 4.5V9h4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 11.5v5M9.5 14h5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function NoteSavedIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <rect x="3" y="4" width="18" height="18" rx="3.5" fill="#1f8cf7" />
+      <rect x="8" y="2.6" width="8" height="4.2" rx="2.1" fill="#5cb2ff" />
+      <path
+        d="m9.2 15.8.5-2.6 5.9-5.9a1.3 1.3 0 0 1 1.8 0l.7.7a1.3 1.3 0 0 1 0 1.8l-5.9 5.9-2.6.5a.35.35 0 0 1-.4-.4Z"
+        fill="#ffffff"
+      />
+      <path
+        d="m13.8 8.9 1.8 1.8"
+        fill="none"
+        stroke="#1f8cf7"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M9.8 16.1 11 15l-1.1-1.1-.1.6Z"
+        fill="#d9efff"
+      />
+    </svg>
+  );
+}
+
 export function VegIcon({
   isVeg,
   className,
