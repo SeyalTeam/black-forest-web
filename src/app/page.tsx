@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   clearBranchSession,
+  clearTableSession,
   readBranchSession,
+  writeTableSession,
   writeBranchSession,
 } from "@/components/branch-session";
 import {
@@ -138,6 +140,8 @@ export default function HomePage() {
   const [branchId, setBranchId] = useState<string | null>(null);
   const [branchNameOverride, setBranchNameOverride] = useState("");
   const [requestedBranchId, setRequestedBranchId] = useState("");
+  const [requestedTableNumber, setRequestedTableNumber] = useState("");
+  const [requestedTableSection, setRequestedTableSection] = useState("");
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("checking");
   const [locationMessage, setLocationMessage] = useState("");
   const [activeOfferIndex, setActiveOfferIndex] = useState(0);
@@ -145,6 +149,7 @@ export default function HomePage() {
   const blockWebsite = useCallback(
     (message: string, status: LocationStatus) => {
       clearBranchSession();
+      clearTableSession();
       setBranchNameOverride("");
       setBranchId(null);
       setLocationStatus(status);
@@ -246,8 +251,16 @@ export default function HomePage() {
     const initializeBranch = async () => {
       const nextBranchId =
         new URLSearchParams(window.location.search).get("branchId")?.trim() ?? "";
+      const nextTableNumber =
+        new URLSearchParams(window.location.search).get("table")?.trim() ||
+        new URLSearchParams(window.location.search).get("t")?.trim() ||
+        "";
+      const nextTableSection =
+        new URLSearchParams(window.location.search).get("section")?.trim() ?? "";
       if (isDisposed) return;
       setRequestedBranchId(nextBranchId);
+      setRequestedTableNumber(nextTableNumber);
+      setRequestedTableSection(nextTableSection);
 
       const cachedSession = readBranchSession();
       if (cachedSession?.branchId && (!nextBranchId || cachedSession.branchId === nextBranchId)) {
@@ -264,6 +277,7 @@ export default function HomePage() {
 
       if (cachedSession?.branchId && nextBranchId && cachedSession.branchId !== nextBranchId) {
         clearBranchSession();
+        clearTableSession();
       }
 
       if (!("geolocation" in navigator)) {
@@ -317,6 +331,18 @@ export default function HomePage() {
       isDisposed = true;
     };
   }, [blockWebsite, requestLocationBranch]);
+
+  useEffect(() => {
+    if (!branchId || !requestedTableNumber) {
+      return;
+    }
+
+    writeTableSession({
+      branchId,
+      tableNumber: requestedTableNumber,
+      section: requestedTableSection,
+    });
+  }, [branchId, requestedTableNumber, requestedTableSection]);
 
   useEffect(() => {
     if (branchId === null) return;

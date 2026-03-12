@@ -89,10 +89,12 @@ async function resolveLiveSectionsForTableNumber({
   tableNumber,
   branchId,
   token,
+  preferredSection,
 }: {
   tableNumber: number;
   branchId: string;
   token: string;
+  preferredSection?: string;
 }) {
   const tablesUrl = `${API_BASE}/tables?where[branch][equals]=${encodeURIComponent(branchId)}&limit=100&depth=1`;
   const response = await fetch(tablesUrl, {
@@ -119,7 +121,20 @@ async function resolveLiveSectionsForTableNumber({
     }
   }
 
-  return Array.from(sectionNames);
+  const orderedSections = Array.from(sectionNames);
+  const normalizedPreferredSection = preferredSection?.trim().toLowerCase() ?? "";
+  if (!normalizedPreferredSection) {
+    return orderedSections;
+  }
+
+  return orderedSections.sort((left, right) => {
+    const leftIsPreferred = left.toLowerCase() === normalizedPreferredSection;
+    const rightIsPreferred = right.toLowerCase() === normalizedPreferredSection;
+    if (leftIsPreferred === rightIsPreferred) {
+      return 0;
+    }
+    return leftIsPreferred ? -1 : 1;
+  });
 }
 
 async function isLiveTableOccupied({
@@ -161,10 +176,12 @@ async function resolveTableTarget({
   tableNumberInput,
   branchId,
   token,
+  preferredSection,
 }: {
   tableNumberInput: string;
   branchId: string;
   token: string;
+  preferredSection?: string;
 }) {
   const tableNumber = tableNumberInput.trim();
   const parsedTable = parseTableNumberToken(tableNumberInput);
@@ -180,6 +197,7 @@ async function resolveTableTarget({
     tableNumber: parsedTable,
     branchId,
     token,
+    preferredSection,
   });
   if (liveSections.length === 0) {
     return {
@@ -308,11 +326,13 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       branchId?: string;
       tableNumber?: string;
+      preferredSection?: string;
       items?: IncomingOrderItem[];
     };
 
     const branchId = toTrimmedText(body.branchId);
     const tableNumberInput = toTrimmedText(body.tableNumber);
+    const preferredSection = toTrimmedText(body.preferredSection);
     const incomingItems = Array.isArray(body.items) ? body.items : [];
 
     if (!branchId) {
@@ -334,6 +354,7 @@ export async function POST(request: NextRequest) {
       tableNumberInput,
       branchId,
       token,
+      preferredSection,
     });
     const tableNumber = resolvedTarget.tableNumber;
     const sectionName = resolvedTarget.section;

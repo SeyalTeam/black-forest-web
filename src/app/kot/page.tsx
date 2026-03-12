@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { readBranchSession } from "@/components/branch-session";
+import { readBranchSession, readTableSession } from "@/components/branch-session";
 import {
   BackIcon,
   BagIcon,
@@ -33,6 +33,7 @@ export default function KotPage() {
   const [branchId, setBranchId] = useState("");
   const [branchName, setBranchName] = useState("VSeyal");
   const [sharedTableNumber, setSharedTableNumber] = useState("");
+  const [preferredSection, setPreferredSection] = useState("");
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [orderMessage, setOrderMessage] = useState("");
   const [orderError, setOrderError] = useState("");
@@ -48,6 +49,11 @@ export default function KotPage() {
       setHasAccess(true);
       setBranchId(session.branchId);
       setBranchName(session.branchName || "VSeyal");
+      const tableSession = readTableSession(session.branchId);
+      if (tableSession?.tableNumber) {
+        setSharedTableNumber(tableSession.tableNumber);
+        setPreferredSection(tableSession.section);
+      }
     });
 
     return () => {
@@ -112,6 +118,7 @@ export default function KotPage() {
           branchId,
           branchName,
           tableNumber: trimmedTableNumber,
+          preferredSection,
           items: cartItems.map((item) => ({
             id: item.id,
             name: item.name,
@@ -133,7 +140,6 @@ export default function KotPage() {
       }
 
       clearCart();
-      setSharedTableNumber("");
       if (payload.billId) {
         router.push(`/bill/${encodeURIComponent(payload.billId)}`);
         return;
@@ -295,7 +301,12 @@ export default function KotPage() {
           <input
             value={sharedTableNumber}
             onChange={(event) => {
-              setSharedTableNumber(event.target.value);
+              const nextValue = event.target.value;
+              setSharedTableNumber(nextValue);
+              const trimmedNextValue = nextValue.trim();
+              if (preferredSection && trimmedNextValue !== sharedTableNumber.trim()) {
+                setPreferredSection("");
+              }
               if (orderError) setOrderError("");
               if (orderMessage) setOrderMessage("");
             }}
