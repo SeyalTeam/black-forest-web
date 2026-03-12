@@ -292,6 +292,26 @@ function mergeNotes(existingNotes: unknown, newNotes: string) {
   return `${existing} | ${newNotes}`;
 }
 
+function readRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function billDocId(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+
+  const map = readRecord(value);
+  if (!map) return "";
+
+  return (
+    toTrimmedText(map.id) ||
+    toTrimmedText(map._id) ||
+    toTrimmedText(map.$oid)
+  );
+}
+
 async function readResponseMessage(response: Response) {
   const raw = await response.text();
   try {
@@ -445,10 +465,18 @@ export async function POST(request: NextRequest) {
     }
 
     const writePayload = (await writeResponse.json()) as Record<string, unknown>;
+    const writeDoc = readRecord(writePayload.doc) ?? writePayload;
     return Response.json({
       ok: true,
-      billId: toTrimmedText(writePayload.id) || existingId,
-      invoiceNumber: toTrimmedText(writePayload.invoiceNumber),
+      billId:
+        billDocId(writeDoc) ||
+        billDocId(writePayload.id) ||
+        billDocId(writePayload._id) ||
+        billDocId(writePayload.doc) ||
+        existingId,
+      invoiceNumber:
+        toTrimmedText(writeDoc.invoiceNumber) ||
+        toTrimmedText(writePayload.invoiceNumber),
       merged: Boolean(existingId),
       tableNumber,
       section: sectionName,
