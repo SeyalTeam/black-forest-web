@@ -1,0 +1,292 @@
+"use client";
+
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { readBranchSession } from "@/components/branch-session";
+import { BackIcon, SearchIcon, VegIcon } from "@/components/menu-icons";
+import styles from "@/components/menu.module.css";
+import { productAvatarLabel, useOrder } from "@/components/order-provider";
+import type { Product, ProductsPageData } from "@/lib/order-types";
+
+function buildCardBackground(product: Product) {
+  if (!product.imageUrl) {
+    return { backgroundImage: product.accent };
+  }
+
+  return {
+    backgroundImage: `${product.accent}, url("${product.imageUrl}")`,
+  };
+}
+
+function productHref(categoryId: string, categoryName: string, from: string) {
+  const query = new URLSearchParams({
+    name: categoryName,
+    from,
+  });
+  return `/products/${encodeURIComponent(categoryId)}?${query.toString()}`;
+}
+
+export default function ProductsPage() {
+  const params = useParams<{ categoryId: string }>();
+  const searchParams = useSearchParams();
+  const categoryId = decodeURIComponent(params.categoryId);
+  const categoryNameFromQuery = searchParams.get("name")?.trim() ?? "";
+  const from = searchParams.get("from") === "categories" ? "categories" : "home";
+  const backHref = from === "categories" ? "/categories" : "/";
+  const { cartItems, totalItems, totalAmount, addItem, decreaseItem } = useOrder();
+
+  const [pageData, setPageData] = useState<ProductsPageData | null>(null);
+  const [branchId, setBranchId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const session = readBranchSession();
+      if (!session?.branchId) {
+        setHasAccess(false);
+        setIsLoading(false);
+        return;
+      }
+
+      setHasAccess(true);
+      setBranchId(session.branchId);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!branchId || !categoryId) return;
+    let isDisposed = false;
+
+    const loadPageData = async () => {
+      setIsLoading(true);
+      setErrorMessage("");
+
+      try {
+        const query = new URLSearchParams({
+          branchId,
+          categoryId,
+        });
+        if (categoryNameFromQuery) {
+          query.set("categoryName", categoryNameFromQuery);
+        }
+
+        const response = await fetch(`/api/products-data?${query.toString()}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          throw new Error("Failed to load products");
+        }
+
+        const payload = (await response.json()) as ProductsPageData;
+        if (isDisposed) return;
+        setPageData(payload);
+      } catch (error) {
+        if (isDisposed) return;
+        setErrorMessage(error instanceof Error ? error.message : "Failed to load products");
+      } finally {
+        if (!isDisposed) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadPageData();
+    return () => {
+      isDisposed = true;
+    };
+  }, [branchId, categoryId, categoryNameFromQuery]);
+
+  const visibleProducts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return pageData?.products ?? [];
+    }
+
+    return (pageData?.products ?? []).filter((product) =>
+      product.name.toLowerCase().includes(query),
+    );
+  }, [pageData?.products, searchQuery]);
+
+  const previewItems = useMemo(
+    () => cartItems.slice(Math.max(0, cartItems.length - 3)),
+    [cartItems],
+  );
+  const summaryLabel = totalItems === 1 ? "1 item ready" : `${totalItems} items ready`;
+
+  if (hasAccess === false) {
+    return (
+      <main className={styles.page}>
+        <section className={styles.shell}>
+          <section className={styles.subPage}>
+            <div className={styles.statusCard}>
+              <strong>Access blocked</strong>
+              Open the homepage first and complete branch location verification.
+            </div>
+          </section>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className={styles.page}>
+      <section className={styles.shell}>
+        <section className={styles.subPage}>
+          <header className={styles.pageHeader}>
+            <Link href={backHref} className={styles.backButton} aria-label="Back">
+              <BackIcon className={styles.backIcon} />
+            </Link>
+            <label className={styles.headerSearch}>
+              <SearchIcon className={styles.inlineIconLarge} />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={`Search in ${(pageData?.categoryName ?? categoryNameFromQuery) || "products"}`}
+              />
+            </label>
+          </header>
+
+          <div className={styles.circleStrip}>
+            <Link href={backHref} className={styles.circleItem}>
+              <span
+                className={styles.circleThumb}
+                style={{
+                  backgroundImage:
+                    "linear-gradient(135deg, rgba(61, 104, 182, 0.18), rgba(75, 124, 192, 0.18))",
+                }}
+              >
+                All
+              </span>
+              <span className={styles.circleLabel}>All</span>
+            </Link>
+            {(pageData?.topCategories ?? []).map((category, index) => (
+              <Link
+                key={`${category.id}-${index}`}
+                href={productHref(category.id, category.name, from)}
+                className={
+                  category.id === pageData?.categoryId ? styles.circleItemActive : styles.circleItem
+                }
+              >
+                <span
+                  className={styles.circleThumb}
+                  style={{
+                    backgroundImage: category.imageUrl
+                      ? `linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.16)), url("${category.imageUrl}")`
+                      : undefined,
+                  }}
+                >
+                  {!category.imageUrl ? productAvatarLabel(category.name) : ""}
+                </span>
+                <span className={styles.circleLabel}>{category.name}</span>
+              </Link>
+            ))}
+          </div>
+
+          {isLoading ? <div className={styles.statusCard}>Loading products...</div> : null}
+          {!isLoading && errorMessage ? <div className={styles.statusCard}>{errorMessage}</div> : null}
+          {!isLoading && !errorMessage && visibleProducts.length === 0 ? (
+            <div className={styles.statusCard}>No products found.</div>
+          ) : null}
+
+          {!isLoading && !errorMessage && visibleProducts.length > 0 ? (
+            <div className={styles.sectionGrid}>
+              {visibleProducts.map((product) => {
+                const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
+                const isFavorite = favoriteIds.includes(product.id);
+
+                return (
+                  <article key={product.id} className={styles.productCard}>
+                    <div className={styles.productArt} style={buildCardBackground(product)}>
+                      <span className={styles.productArtLabel}>
+                        {product.imageUrl ? "" : productAvatarLabel(product.name)}
+                      </span>
+                      <button
+                        type="button"
+                        className={`${styles.favoriteButton} ${isFavorite ? styles.favoriteButtonActive : ""}`}
+                        onClick={() =>
+                          setFavoriteIds((current) =>
+                            current.includes(product.id)
+                              ? current.filter((id) => id !== product.id)
+                              : [...current, product.id],
+                          )
+                        }
+                        aria-label={isFavorite ? "Remove favorite" : "Add favorite"}
+                      >
+                        {isFavorite ? "♥" : "♡"}
+                      </button>
+                    </div>
+
+                    <div className={styles.productBody}>
+                      <div className={styles.productMetaRow}>
+                        <VegIcon isVeg={product.isVeg} />
+                      </div>
+                      <div className={styles.productTitle}>{product.name}</div>
+                      <div className={styles.productFooter}>
+                        <div className={styles.priceText}>₹{product.price}</div>
+
+                        {quantity === 0 ? (
+                          <button
+                            type="button"
+                            className={styles.addButton}
+                            onClick={() => addItem(product)}
+                          >
+                            ADD
+                          </button>
+                        ) : (
+                          <div className={styles.qtyControl}>
+                            <button type="button" onClick={() => decreaseItem(product.id)}>
+                              −
+                            </button>
+                            <span className={styles.qtyValue}>{quantity}</span>
+                            <button type="button" onClick={() => addItem(product)}>
+                              +
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
+        </section>
+      </section>
+
+      {totalItems > 0 ? (
+        <div className={styles.floatingCartBar}>
+          <div className={styles.floatingCartInfo}>
+            <div className={styles.avatarStack}>
+              {previewItems.map((item, index) => (
+                <div
+                  key={item.id}
+                  className={styles.avatarChip}
+                  style={{ background: item.accent, left: `${index * 18}px` }}
+                >
+                  {productAvatarLabel(item.name)}
+                </div>
+              ))}
+            </div>
+            <div>
+              <strong>{summaryLabel}</strong>
+              <p>₹{totalAmount} total</p>
+            </div>
+          </div>
+
+          <Link href="/kot" className={styles.floatingCartAction}>
+            View Cart
+          </Link>
+        </div>
+      ) : null}
+    </main>
+  );
+}

@@ -1,0 +1,368 @@
+.page {
+  min-height: 100vh;
+  padding: 18px 16px 120px;
+  background: linear-gradient(180deg, #f8f2ec 0%, #f2ece5 100%);
+}
+
+.shell {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.branchWrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 18px rgba(48, 37, 25, 0.08);
+}
+
+.profileIcon {
+  width: 34px;
+  height: 34px;
+}
+
+.branchName {
+  color: #1f2430;
+  font-size: 1.9rem;
+  font-weight: 900;
+}
+
+.branchMeta {
+  color: #7f7468;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.backLink {
+  color: #7f7468;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.chip {
+  min-width: 160px;
+  min-height: 56px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid #d8d1c7;
+  color: #1f2430;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.chipIcon {
+  color: #7a808d;
+  font-size: 1.1rem;
+}
+
+.orderCard {
+  padding: 18px 16px 14px;
+  border-radius: 30px;
+  background: #ffffff;
+  box-shadow: 0 18px 34px rgba(99, 80, 60, 0.12);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.titleRow h2 {
+  color: #1f2430;
+  font-size: 1.9rem;
+  font-weight: 900;
+}
+
+.titleLine {
+  flex: 1;
+  height: 1px;
+  background: #ddd8d2;
+}
+
+.itemList {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 14px;
+}
+
+.itemRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.itemLead {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.itemMeta h3 {
+  color: #1f2430;
+  font-size: 1.05rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.itemMeta p {
+  margin-top: 5px;
+  color: #7d7469;
+  font-size: 0.92rem;
+}
+
+.itemActions {
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.qtyBox {
+  width: 118px;
+  height: 44px;
+  display: grid;
+  grid-template-columns: 30px 1fr 30px;
+  align-items: center;
+  border-radius: 16px;
+  border: 1px solid #d8d1c7;
+  background: #fdfcfb;
+}
+
+.qtyBox button {
+  background: transparent;
+  color: #17a05c;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.qtyValue {
+  color: #1f2430;
+  font-size: 1rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.itemPrice {
+  color: #1f2430;
+  font-size: 1.45rem;
+  font-weight: 900;
+}
+
+.inlineActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.inlineAction,
+.tableInput input {
+  min-height: 54px;
+  border-radius: 18px;
+  border: 1px solid #d8d1c7;
+  background: #fcfbfa;
+}
+
+.inlineAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #2b2b35;
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.requestPanel {
+  margin-top: 14px;
+}
+
+.requestPanel label {
+  display: block;
+  color: #7f7468;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.requestPanel textarea {
+  width: 100%;
+  min-height: 104px;
+  margin-top: 8px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid #d8d1c7;
+  background: #fcfbfa;
+  color: #1f2430;
+  resize: vertical;
+}
+
+.tableInput {
+  display: block;
+}
+
+.tableInput span {
+  display: block;
+  margin-bottom: 8px;
+  color: #7f7468;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.tableInput input {
+  width: 100%;
+  padding: 0 16px;
+  color: #1f2430;
+  outline: none;
+}
+
+.statusCard {
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.08);
+  color: #425064;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.statusCard strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #243040;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.orderBar {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 20px));
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-radius: 24px;
+  background: #ef4f5f;
+  box-shadow: 0 16px 32px rgba(161, 49, 63, 0.28);
+  color: #ffffff;
+}
+
+.orderPreview {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.previewStack {
+  position: relative;
+  width: 64px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.previewAvatar {
+  position: absolute;
+  top: 0;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 3px solid rgba(255, 255, 255, 0.88);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.orderPreview strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.orderPreview p {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.85rem;
+}
+
+.orderButton {
+  min-width: 140px;
+  height: 48px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 14px 12px 120px;
+  }
+
+  .branchName {
+    font-size: 1.55rem;
+  }
+
+  .chip {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  .inlineActions {
+    grid-template-columns: 1fr;
+  }
+
+  .orderBar {
+    width: calc(100vw - 16px);
+  }
+
+  .orderButton {
+    min-width: 120px;
+  }
+}

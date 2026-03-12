@@ -1,9 +1,11 @@
 import type {
   BranchLookupResult,
+  CategoriesPageData,
   CategoryCard,
   HomePageData,
   OfferSlide,
   Product,
+  ProductsPageData,
   RuleSection,
 } from "@/lib/order-types";
 
@@ -12,6 +14,7 @@ const DEFAULT_BRANCH_ID =
   process.env.DEFAULT_BRANCH_ID?.trim() ||
   process.env.NEXT_PUBLIC_DEFAULT_BRANCH_ID?.trim() ||
   "6906dc71896efbd4bc64d028";
+const TOP_CATEGORY_RULE_NAME = "top categories";
 
 const ACCENTS = [
   "linear-gradient(135deg, #3b261e, #9d5a33)",
@@ -62,7 +65,7 @@ function toArray(value: unknown): unknown[] {
   const map = toMap(value);
   if (!map) return [value];
 
-  const nestedKeys = ["docs", "items", "rules", "options", "values", "data"];
+  const nestedKeys = ["docs", "items", "rules", "options", "values", "data", "locations"];
   for (const key of nestedKeys) {
     const nested = map[key];
     if (Array.isArray(nested)) return nested;
@@ -262,7 +265,18 @@ function readCategoryEntry(node: unknown): CategoryCard | null {
 function readProductCategoryEntry(productNode: unknown): CategoryCard | null {
   const map = toMap(productNode);
   if (!map) return null;
-  return readCategoryEntry(map.category ?? map.categoryId ?? map.categoryName);
+  const candidates = [
+    map.category,
+    map.defaultCategory,
+    map.categories,
+    map.categoryId,
+    map.categoryName,
+  ];
+  for (const candidate of candidates) {
+    const category = readCategoryEntry(candidate);
+    if (category) return category;
+  }
+  return null;
 }
 
 function readProductImage(productNode: unknown): string | null {
@@ -271,9 +285,56 @@ function readProductImage(productNode: unknown): string | null {
   return extractImageFromAny(map.images ?? map.image ?? map.thumbnail ?? map.imageUrl ?? map);
 }
 
-function normalizeProduct(productNode: unknown): Product | null {
+function isProductActiveForBranch(product: DynamicMap, branchId?: string) {
+  if (readText(product.status).toLowerCase() === "inactive") {
+    return false;
+  }
+
+  if (product.isAvailable === false) {
+    return false;
+  }
+
+  if (!branchId) {
+    return true;
+  }
+
+  for (const rawBranch of toArray(product.inactiveBranches)) {
+    if (extractRefId(rawBranch) === branchId) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function readBranchScopedPrice(product: DynamicMap, branchId?: string) {
+  let price = toNumber(product.price) || toNumber(toMap(product.defaultPriceDetails)?.price);
+  if (!branchId) {
+    return price;
+  }
+
+  for (const rawOverride of toArray(product.branchOverrides)) {
+    const override = toMap(rawOverride);
+    if (!override) continue;
+    if (extractRefId(override.branch) !== branchId) continue;
+
+    const overridePrice =
+      toNumber(override.price) ||
+      toNumber(override.offerPrice) ||
+      toNumber(toMap(override.defaultPriceDetails)?.price);
+    if (overridePrice > 0) {
+      price = overridePrice;
+    }
+    break;
+  }
+
+  return price;
+}
+
+function normalizeProduct(productNode: unknown, branchId?: string): Product | null {
   const map = toMap(productNode);
   if (!map) return null;
+  if (!isProductActiveForBranch(map, branchId)) return null;
 
   const id = extractRefId(map.id ?? map.value ?? map.productId ?? map.product);
   const name = readText(map.name, map.label, map.title);
@@ -289,7 +350,7 @@ function normalizeProduct(productNode: unknown): Product | null {
     "Products";
   const isVeg = toBool(map.isVeg ?? map.is_veg ?? map.veg);
   const imageUrl = readProductImage(map) ?? category?.imageUrl ?? "";
-  const price = toNumber(map.price) || toNumber(toMap(map.defaultPriceDetails)?.price);
+  const price = readBranchScopedPrice(map, branchId);
 
   return {
     id,
@@ -337,16 +398,23 @@ function distanceInMeters(
   return earthRadius * c;
 }
 
-async function fetchBranchName(branchId: string) {
+async function fetchBranchMeta(branchId: string) {
   try {
     const branch = await fetchJson(`/branches/${branchId}?depth=1`);
-    return readText(toMap(branch)?.name) || "VSeyal";
+    const branchMap = toMap(branch);
+    return {
+      name: readText(branchMap?.name) || "VSeyal",
+      companyId: extractRefId(branchMap?.company),
+    };
   } catch {
-    return "VSeyal";
+    return {
+      name: "VSeyal",
+      companyId: "",
+    };
   }
 }
 
-async function fetchProductsByIds(productIds: string[]) {
+async function fetchProductsByIds(productIds: string[], branchId?: string) {
   if (productIds.length === 0) return new Map<string, Product>();
 
   const params = new URLSearchParams();
@@ -357,7 +425,7 @@ async function fetchProductsByIds(productIds: string[]) {
   const decoded = await fetchJson(`/products?${params.toString()}`);
   const products = new Map<string, Product>();
   for (const rawProduct of toArray(decoded)) {
-    const normalized = normalizeProduct(rawProduct);
+    const normalized = normalizeProduct(rawProduct, branchId);
     if (!normalized) continue;
     products.set(normalized.id, normalized);
   }
@@ -428,6 +496,48 @@ async function hydrateProducts(products: Product[]) {
       categoryImageUrl: product.categoryImageUrl ?? category.imageUrl,
     };
   });
+}
+
+async function fetchAllCategories(companyId?: string) {
+  const params = new URLSearchParams();
+  params.set("limit", "100");
+  params.set("depth", "1");
+  if (companyId) {
+    params.set("where[company][contains]", companyId);
+  }
+
+  const decoded = await fetchJson(`/categories?${params.toString()}`);
+  const categories: CategoryCard[] = [];
+  const seen = new Set<string>();
+
+  for (const rawCategory of toArray(decoded)) {
+    const category = readCategoryEntry(rawCategory);
+    if (!category || seen.has(category.id)) continue;
+    seen.add(category.id);
+    categories.push(category);
+  }
+
+  return categories;
+}
+
+async function fetchProductsForCategory(branchId: string, categoryId: string) {
+  const params = new URLSearchParams();
+  params.set("where[category][equals]", categoryId);
+  params.set("limit", "100");
+  params.set("depth", "2");
+
+  const decoded = await fetchJson(`/products?${params.toString()}`);
+  const products: Product[] = [];
+  const seen = new Set<string>();
+
+  for (const rawProduct of toArray(decoded)) {
+    const product = normalizeProduct(rawProduct, branchId);
+    if (!product || seen.has(product.id)) continue;
+    seen.add(product.id);
+    products.push(product);
+  }
+
+  return hydrateProducts(products);
 }
 
 async function fetchBillingCategories(branchId: string) {
@@ -518,7 +628,7 @@ async function fetchRuleSections(widgetSettings: unknown, branchId: string) {
     }
   }
 
-  const productsById = await fetchProductsByIds([...productIds]);
+  const productsById = await fetchProductsByIds([...productIds], branchId);
   const sections: RuleSection[] = [];
 
   for (const rule of matchingRules) {
@@ -532,7 +642,7 @@ async function fetchRuleSections(widgetSettings: unknown, branchId: string) {
       if (!id || seen.has(id)) continue;
       seen.add(id);
 
-      const normalized = productsById.get(id) ?? normalizeProduct(rawProduct);
+      const normalized = productsById.get(id) ?? normalizeProduct(rawProduct, branchId);
       if (!normalized) continue;
       products.push(normalized);
     }
@@ -547,12 +657,17 @@ async function fetchRuleSections(widgetSettings: unknown, branchId: string) {
   return sections;
 }
 
-async function fetchFavoriteCategories(widgetSettings: unknown, branchId: string) {
+async function fetchBranchRuleCategories(
+  widgetSettings: unknown,
+  branchId: string,
+  ruleNameFilter?: string,
+) {
   const rules = toArray(findByKey(widgetSettings, "favoriteCategoriesByBranchRules"));
   const titles: string[] = [];
   const categories: CategoryCard[] = [];
   const seenTitles = new Set<string>();
   const seenCategoryIds = new Set<string>();
+  const normalizedRuleName = readText(ruleNameFilter).toLowerCase();
 
   for (const rawRule of rules) {
     const rule = toMap(rawRule);
@@ -567,6 +682,9 @@ async function fetchFavoriteCategories(widgetSettings: unknown, branchId: string
     }
 
     const title = readText(rule.ruleName);
+    if (normalizedRuleName && title.toLowerCase() !== normalizedRuleName) {
+      continue;
+    }
     if (title && !seenTitles.has(title)) {
       seenTitles.add(title);
       titles.push(title);
@@ -581,9 +699,26 @@ async function fetchFavoriteCategories(widgetSettings: unknown, branchId: string
   }
 
   return {
-    title: titles.length > 0 ? titles.join(" / ") : "Favorite Categories",
+    titles,
     categories: await hydrateCategories(categories),
   };
+}
+
+async function fetchFavoriteCategories(widgetSettings: unknown, branchId: string) {
+  const payload = await fetchBranchRuleCategories(widgetSettings, branchId);
+  return {
+    title: payload.titles.length > 0 ? payload.titles.join(" / ") : "Favorite Categories",
+    categories: payload.categories,
+  };
+}
+
+async function fetchTopCategories(widgetSettings: unknown, branchId: string) {
+  const payload = await fetchBranchRuleCategories(
+    widgetSettings,
+    branchId,
+    TOP_CATEGORY_RULE_NAME,
+  );
+  return payload.categories;
 }
 
 function readOfferImage(node: unknown) {
@@ -783,25 +918,99 @@ export async function findBranchByCoordinates(
 
 export async function getHomePageData(inputBranchId?: string): Promise<HomePageData> {
   const branchId = readText(inputBranchId) || DEFAULT_BRANCH_ID;
-  const [widgetSettings, offerSettings, branchName, billingCategories] = await Promise.all([
+  const [widgetSettings, offerSettings, branchMeta, billingCategories] = await Promise.all([
     fetchJson("/globals/widget-settings?depth=1"),
     fetchJson("/globals/customer-offer-settings?depth=1"),
-    fetchBranchName(branchId),
+    fetchBranchMeta(branchId),
     fetchBillingCategories(branchId),
   ]);
 
-  const [ruleSections, favoriteCategoryPayload] = await Promise.all([
+  const [ruleSections, favoriteCategoryPayload, topCategories] = await Promise.all([
     fetchRuleSections(widgetSettings, branchId),
     fetchFavoriteCategories(widgetSettings, branchId),
+    fetchTopCategories(widgetSettings, branchId),
   ]);
 
   return {
     branchId,
-    branchName,
+    branchName: branchMeta.name,
     offerSlides: buildOfferSlides(offerSettings),
     billingCategories,
+    topCategories,
     favoriteCategoriesTitle: favoriteCategoryPayload.title,
     favoriteCategories: favoriteCategoryPayload.categories,
     ruleSections,
+  };
+}
+
+export async function getCategoriesPageData(
+  inputBranchId?: string,
+): Promise<CategoriesPageData> {
+  const branchId = readText(inputBranchId) || DEFAULT_BRANCH_ID;
+  const [widgetSettings, offerSettings, branchMeta] = await Promise.all([
+    fetchJson("/globals/widget-settings?depth=1"),
+    fetchJson("/globals/customer-offer-settings?depth=1"),
+    fetchBranchMeta(branchId),
+  ]);
+  const [categories, topCategories] = await Promise.all([
+    fetchAllCategories(branchMeta.companyId),
+    fetchTopCategories(widgetSettings, branchId),
+  ]);
+
+  return {
+    branchId,
+    branchName: branchMeta.name,
+    offerSlides: buildOfferSlides(offerSettings),
+    categories,
+    topCategories,
+  };
+}
+
+export async function getProductsPageData(
+  categoryId: string,
+  inputBranchId?: string,
+  inputCategoryName?: string,
+): Promise<ProductsPageData> {
+  const normalizedCategoryId = readText(categoryId);
+  if (!normalizedCategoryId) {
+    throw new Error("Category id is required");
+  }
+
+  const branchId = readText(inputBranchId) || DEFAULT_BRANCH_ID;
+  const [widgetSettings, branchMeta] = await Promise.all([
+    fetchJson("/globals/widget-settings?depth=1"),
+    fetchBranchMeta(branchId),
+  ]);
+  const [products, categories, topCategories] = await Promise.all([
+    fetchProductsForCategory(branchId, normalizedCategoryId),
+    fetchAllCategories(branchMeta.companyId),
+    fetchTopCategories(widgetSettings, branchId),
+  ]);
+
+  const selectedCategory =
+    categories.find((category) => category.id === normalizedCategoryId) ??
+    topCategories.find((category) => category.id === normalizedCategoryId) ??
+    null;
+  const resolvedCategoryName =
+    readText(inputCategoryName, selectedCategory?.name, products[0]?.category) || "Products";
+  const resolvedCategoryImage =
+    selectedCategory?.imageUrl ?? products[0]?.categoryImageUrl ?? products[0]?.imageUrl ?? null;
+  const orderedTopCategories = [
+    {
+      id: normalizedCategoryId,
+      name: resolvedCategoryName,
+      imageUrl: resolvedCategoryImage,
+      count: 0,
+    },
+    ...topCategories.filter((category) => category.id !== normalizedCategoryId),
+  ];
+
+  return {
+    branchId,
+    branchName: branchMeta.name,
+    categoryId: normalizedCategoryId,
+    categoryName: resolvedCategoryName,
+    topCategories: orderedTopCategories,
+    products,
   };
 }

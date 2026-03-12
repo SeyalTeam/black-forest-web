@@ -2,6 +2,15 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { clearBranchSession, writeBranchSession } from "@/components/branch-session";
+import {
+  MicIcon,
+  PinIcon,
+  ProfileIcon,
+  SearchIcon,
+  VegIcon,
+} from "@/components/menu-icons";
+import styles from "@/components/menu.module.css";
 import { productAvatarLabel, useOrder } from "@/components/order-provider";
 import type {
   BranchLookupResult,
@@ -10,10 +19,6 @@ import type {
   Product,
   RuleSection,
 } from "@/lib/order-types";
-import styles from "./page.module.css";
-
-const SESSION_BRANCH_ID_KEY = "blackforest-order-web-branch-id";
-const SESSION_BRANCH_NAME_KEY = "blackforest-order-web-branch-name";
 
 type LocationStatus =
   | "checking"
@@ -24,65 +29,6 @@ type LocationStatus =
   | "denied"
   | "unsupported"
   | "skipped";
-
-function VegIcon({ isVeg }: { isVeg: boolean }) {
-  return (
-    <span
-      className={isVeg ? styles.vegIcon : styles.nonVegIcon}
-      aria-hidden="true"
-    >
-      <span />
-    </span>
-  );
-}
-
-function PinIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.inlineIcon}>
-      <path
-        d="M12 21c-.4 0-.8-.2-1-.5C7 15.4 5 12.6 5 9.5 5 5.9 8 3 12 3s7 2.9 7 6.5c0 3.1-2 5.9-6 11-.2.3-.6.5-1 .5Z"
-        fill="currentColor"
-      />
-      <circle cx="12" cy="9.5" r="2.8" fill="#d97937" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.inlineIconLarge}>
-      <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2.2" />
-      <path d="M16.2 16.2 21 21" fill="none" stroke="currentColor" strokeWidth="2.2" />
-    </svg>
-  );
-}
-
-function MicIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.inlineIconLarge}>
-      <rect x="9" y="3" width="6" height="12" rx="3" fill="currentColor" />
-      <path
-        d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function ProfileIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.profileIcon}>
-      <circle cx="12" cy="8.2" r="4.2" fill="#d58a56" />
-      <path
-        d="M5 20c1.4-3.9 4-5.8 7-5.8s5.6 1.9 7 5.8"
-        fill="#d58a56"
-      />
-    </svg>
-  );
-}
 
 function orderProducts(products: Product[], favoriteIds: string[]) {
   if (favoriteIds.length === 0) return products;
@@ -132,12 +78,19 @@ function buildCardBackground(product: Product) {
   };
 }
 
+function productHref(categoryId: string, categoryName: string, from: "home" | "categories") {
+  const query = new URLSearchParams({
+    name: categoryName,
+    from,
+  });
+  return `/products/${encodeURIComponent(categoryId)}?${query.toString()}`;
+}
+
 export default function HomePage() {
   const { cartItems, totalItems, totalAmount, addItem, decreaseItem } = useOrder();
   const [homeData, setHomeData] = useState<HomePageData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All");
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [branchNameOverride, setBranchNameOverride] = useState("");
@@ -148,10 +101,7 @@ export default function HomePage() {
 
   const blockWebsite = useCallback(
     (message: string, status: LocationStatus) => {
-      if (typeof window !== "undefined") {
-        window.sessionStorage.removeItem(SESSION_BRANCH_ID_KEY);
-        window.sessionStorage.removeItem(SESSION_BRANCH_NAME_KEY);
-      }
+      clearBranchSession();
       setBranchNameOverride("");
       setBranchId(null);
       setLocationStatus(status);
@@ -208,8 +158,7 @@ export default function HomePage() {
             return;
           }
 
-          window.sessionStorage.setItem(SESSION_BRANCH_ID_KEY, payload.branchId);
-          window.sessionStorage.setItem(SESSION_BRANCH_NAME_KEY, payload.branchName);
+          writeBranchSession(payload.branchId, payload.branchName);
           setBranchId(payload.branchId);
           setBranchNameOverride(payload.branchName);
           setLocationStatus("resolved");
@@ -360,18 +309,6 @@ export default function HomePage() {
       })),
     [favoriteIds, homeData?.ruleSections],
   );
-  const filteredSections = useMemo(
-    () =>
-      orderedSections
-        .map((section) => ({
-          ...section,
-          products: section.products.filter((product) =>
-            activeCategory === "All" ? true : product.category === activeCategory,
-          ),
-        }))
-        .filter((section) => section.products.length > 0),
-    [activeCategory, orderedSections],
-  );
   const fastMovementCategories = useMemo(
     () => extractFastMovementCategories(orderedSections),
     [orderedSections],
@@ -409,29 +346,6 @@ export default function HomePage() {
     orderedSections,
   ]);
 
-  const availableCategories = useMemo(() => {
-    const names = new Set<string>();
-    for (const category of homeData?.billingCategories ?? []) names.add(category.name);
-    for (const category of homeData?.favoriteCategories ?? []) names.add(category.name);
-    for (const category of fastMovementCategories) names.add(category.name);
-    for (const section of orderedSections) {
-      for (const product of section.products) names.add(product.category);
-    }
-    return ["All", ...names];
-  }, [
-    fastMovementCategories,
-    homeData?.billingCategories,
-    homeData?.favoriteCategories,
-    orderedSections,
-  ]);
-
-  useEffect(() => {
-    if (activeCategory === "All") return;
-    if (!availableCategories.includes(activeCategory)) {
-      setActiveCategory("All");
-    }
-  }, [activeCategory, availableCategories]);
-
   const offerSlides = homeData?.offerSlides ?? [];
   const activeOffer =
     offerSlides.length > 0 ? offerSlides[activeOfferIndex % offerSlides.length] : null;
@@ -452,73 +366,31 @@ export default function HomePage() {
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
-        <section className={styles.topSection}>
-          {accessGranted && activeOffer ? (
+        <section className={styles.hero}>
+          {accessGranted ? (
             <div
               className={styles.offerBackdrop}
               style={
                 {
-                  "--offer-start": activeOffer.startColor,
-                  "--offer-end": activeOffer.endColor,
+                  "--offer-start": activeOffer?.startColor ?? "#17b78e",
+                  "--offer-end": activeOffer?.endColor ?? "#0a8d67",
                 } as CSSProperties
               }
-            >
-              <div className={styles.offerGlowTop} />
-              <div className={styles.offerGlowBottom} />
-              <div className={styles.offerShape} />
-              <div className={styles.offerInner}>
-                <div className={styles.offerBadge}>{activeOffer.badge}</div>
-                <div className={styles.offerContent}>
-                  <div className={styles.offerText}>
-                    <h2>{activeOffer.title}</h2>
-                    <p>{activeOffer.subtitle}</p>
-                  </div>
-
-                  <div className={styles.offerMediaWrap}>
-                    {activeOffer.imageUrl ? (
-                      <div
-                        className={styles.offerMedia}
-                        style={{ backgroundImage: `url("${activeOffer.imageUrl}")` }}
-                      />
-                    ) : (
-                      <div className={styles.offerValueVisual}>
-                        {activeOffer.valueText || activeOffer.visualSymbol || "%"}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {offerSlides.length > 1 ? (
-                  <div className={styles.offerDots}>
-                    {offerSlides.map((offer, index) => (
-                      <button
-                        key={`${offer.badge}-${offer.title}-${index}`}
-                        type="button"
-                        className={
-                          index === activeOfferIndex % offerSlides.length
-                            ? styles.offerDotActive
-                            : styles.offerDot
-                        }
-                        onClick={() => setActiveOfferIndex(index)}
-                        aria-label={`Show offer ${index + 1}`}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </div>
+            />
           ) : null}
-
-          <div className={styles.topSectionShade} />
+          <div className={styles.heroShade} />
 
           <div className={styles.topBar}>
-            <div className={styles.branchMarker}>
-              <PinIcon />
-              <h1>{activeBranchName}</h1>
+            <div>
+              <div className={styles.branchRow}>
+                <PinIcon className={styles.inlineIcon} />
+                <span>{activeBranchName.toUpperCase()}</span>
+              </div>
+              <h1 className={styles.branchName}>{activeBranchName}</h1>
             </div>
 
-            <div className={styles.profileChip}>
-              <ProfileIcon />
+            <div className={styles.profileAvatar}>
+              <ProfileIcon className={styles.profileIcon} />
             </div>
           </div>
 
@@ -542,8 +414,17 @@ export default function HomePage() {
 
           {locationStatus !== "prompt" && locationMessage && !accessGranted ? (
             <div className={styles.locationStatus}>
-              <strong>Location</strong>
-              <span>{locationMessage}</span>
+              <div>
+                <strong>Location</strong>
+                <span>{locationMessage}</span>
+              </div>
+              <button
+                type="button"
+                className={styles.locationPrimaryButton}
+                onClick={() => requestLocationBranch(requestedBranchId)}
+              >
+                Retry
+              </button>
             </div>
           ) : null}
 
@@ -565,102 +446,138 @@ export default function HomePage() {
             </div>
           ) : (
             <>
-              <button type="button" className={styles.searchBar}>
-                <SearchIcon />
+              {activeOffer ? (
+                <div className={styles.heroContent}>
+                  <div>
+                    <div className={styles.offerBadge}>{activeOffer.badge}</div>
+                    <div className={styles.offerText}>
+                      <h2>{activeOffer.title}</h2>
+                      <p>{activeOffer.subtitle}</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.offerMediaWrap}>
+                    {activeOffer.imageUrl ? (
+                      <div
+                        className={styles.offerMedia}
+                        style={{ backgroundImage: `url("${activeOffer.imageUrl}")` }}
+                      />
+                    ) : (
+                      <div className={styles.offerValueVisual}>
+                        {activeOffer.valueText || activeOffer.visualSymbol || "%"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.heroSpacer} />
+              )}
+
+              {offerSlides.length > 1 ? (
+                <div className={styles.offerDots}>
+                  {offerSlides.map((offer, index) => (
+                    <button
+                      key={`${offer.badge}-${offer.title}-${index}`}
+                      type="button"
+                      className={
+                        index === activeOfferIndex % offerSlides.length
+                          ? styles.offerDotActive
+                          : styles.offerDot
+                      }
+                      onClick={() => setActiveOfferIndex(index)}
+                      aria-label={`Show offer ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              ) : null}
+
+              <button type="button" className={styles.heroSearch}>
+                <SearchIcon className={styles.inlineIconLarge} />
                 <span>Search for &quot;Pizza&quot;</span>
-                <MicIcon />
+                <MicIcon className={styles.inlineIconLarge} />
               </button>
             </>
           )}
         </section>
 
         {accessGranted ? (
-        <section className={styles.categoryStrip}>
-          <button
-            type="button"
-            className={activeCategory === "All" ? styles.categoryItemActive : styles.categoryItem}
-            onClick={() => setActiveCategory("All")}
-          >
-            <span
-              className={styles.categoryThumb}
-              style={{
-                backgroundImage:
-                  'linear-gradient(135deg, rgba(61, 104, 182, 0.18), rgba(75, 124, 192, 0.18))',
-              }}
-            >
-              All
-            </span>
-            <span className={styles.categoryLabel}>All</span>
-          </button>
-          {(homeData?.billingCategories ?? []).map((category) => (
-            <button
-              key={category.id}
-              type="button"
-              className={
-                activeCategory === category.name ? styles.categoryItemActive : styles.categoryItem
-              }
-              onClick={() => setActiveCategory(category.name)}
-            >
+          <section className={styles.circleStrip}>
+            <Link href="/categories" className={styles.circleItem}>
               <span
-                className={styles.categoryThumb}
+                className={styles.circleThumb}
                 style={{
-                  backgroundImage: categoryImages[category.name]
-                    ? `linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.16)), url("${categoryImages[category.name]}")`
-                    : undefined,
+                  backgroundImage:
+                    "linear-gradient(135deg, rgba(61, 104, 182, 0.18), rgba(75, 124, 192, 0.18))",
                 }}
               >
-                {!categoryImages[category.name] ? productAvatarLabel(category.name) : ""}
+                All
               </span>
-              <span className={styles.categoryLabel}>{category.name}</span>
-            </button>
-          ))}
-        </section>
+              <span className={styles.circleLabel}>All</span>
+            </Link>
+            {(homeData?.billingCategories ?? []).map((category) => (
+              <Link
+                key={category.id}
+                href={productHref(category.id, category.name, "home")}
+                className={styles.circleItem}
+              >
+                <span
+                  className={styles.circleThumb}
+                  style={{
+                    backgroundImage: categoryImages[category.name]
+                      ? `linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.16)), url("${categoryImages[category.name]}")`
+                      : undefined,
+                  }}
+                >
+                  {!categoryImages[category.name] ? productAvatarLabel(category.name) : ""}
+                </span>
+                <span className={styles.circleLabel}>{category.name}</span>
+              </Link>
+            ))}
+          </section>
         ) : null}
 
         {accessGranted ? (
-        <section className={styles.boxSection}>
-          <div className={styles.sectionHeader}>
-            <h3>Fast Movement</h3>
-          </div>
-          <div className={styles.fastGrid}>
-            {fastMovementCategories.map((category) => (
-              <button
-                key={category.id}
-                type="button"
-                className={styles.fastCard}
-                onClick={() => setActiveCategory(category.name)}
-              >
-                <div
-                  className={styles.fastCardMedia}
-                  style={{
-                    backgroundImage: categoryImages[category.name]
-                      ? `linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08)), url("${categoryImages[category.name]}")`
-                      : undefined,
-                  }}
-                />
-                <div className={styles.fastCardOverlay}>
-                  <span>{category.name.toUpperCase()}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
+          <section className={styles.sectionBlock}>
+            <div className={styles.sectionTitle}>
+              <h2>Fast Movement</h2>
+            </div>
+            <div className={styles.fastGrid}>
+              {fastMovementCategories.map((category) => (
+                <Link
+                  key={category.id}
+                  href={productHref(category.id, category.name, "home")}
+                  className={styles.fastCard}
+                >
+                  <div
+                    className={styles.fastCardMedia}
+                    style={{
+                      backgroundImage: categoryImages[category.name]
+                        ? `linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08)), url("${categoryImages[category.name]}")`
+                        : undefined,
+                    }}
+                  />
+                  <div className={styles.fastCardLabel}>{category.name.toUpperCase()}</div>
+                </Link>
+              ))}
+            </div>
+            <div className={styles.sectionDivider} />
+          </section>
         ) : null}
 
         {accessGranted && isLoading ? (
-          <section className={styles.boxSection}>
+          <section className={styles.sectionBlock}>
             <div className={styles.statusCard}>Loading homepage data...</div>
           </section>
         ) : null}
 
         {accessGranted && !isLoading && errorMessage ? (
-          <section className={styles.boxSection}>
+          <section className={styles.sectionBlock}>
             <div className={styles.statusCard}>{errorMessage}</div>
           </section>
         ) : null}
 
-        {accessGranted && !isLoading && !errorMessage && filteredSections.length === 0 ? (
-          <section className={styles.boxSection}>
+        {accessGranted && !isLoading && !errorMessage && orderedSections.length === 0 ? (
+          <section className={styles.sectionBlock}>
             <div className={styles.statusCard}>No recommended products available for this branch.</div>
           </section>
         ) : null}
@@ -668,32 +585,27 @@ export default function HomePage() {
         {accessGranted &&
           !isLoading &&
           !errorMessage &&
-          filteredSections.map((section) => (
-            <section key={section.title} className={styles.boxSection}>
-              <div className={styles.sectionHeader}>
-                <h3>
+          orderedSections.map((section) => (
+            <section key={section.title} className={styles.sectionBlock}>
+              <div className={styles.sectionTitle}>
+                <h2>
                   {section.title} ({section.products.length})
-                </h3>
-                <span>⌄</span>
+                </h2>
               </div>
-              <div className={styles.productGrid}>
+              <div className={styles.sectionGrid}>
                 {section.products.map((product) => {
-                  const quantity =
-                    cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
+                  const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
                   const isFavorite = favoriteIds.includes(product.id);
 
                   return (
-                    <article key={product.id} className={styles.card}>
-                      <div className={styles.cardArtWrap}>
-                        <div
-                          className={styles.cardArt}
-                          style={buildCardBackground(product)}
-                        >
-                          <span>{productAvatarLabel(product.name)}</span>
-                        </div>
+                    <article key={product.id} className={styles.productCard}>
+                      <div className={styles.productArt} style={buildCardBackground(product)}>
+                        <span className={styles.productArtLabel}>
+                          {product.imageUrl ? "" : productAvatarLabel(product.name)}
+                        </span>
                         <button
                           type="button"
-                          className={styles.favoriteButton}
+                          className={`${styles.favoriteButton} ${isFavorite ? styles.favoriteButtonActive : ""}`}
                           onClick={() =>
                             setFavoriteIds((current) =>
                               current.includes(product.id)
@@ -707,20 +619,13 @@ export default function HomePage() {
                         </button>
                       </div>
 
-                      <div className={styles.cardBody}>
-                        <div className={styles.foodMarkerRow}>
+                      <div className={styles.productBody}>
+                        <div className={styles.productMetaRow}>
                           <VegIcon isVeg={product.isVeg} />
                         </div>
-                        <div className={styles.cardHeading}>
-                          <div>
-                            <h3>{product.name}</h3>
-                          </div>
-                        </div>
-
-                        <div className={styles.cardFooter}>
-                          <div>
-                            <strong>₹{product.price}</strong>
-                          </div>
+                        <div className={styles.productTitle}>{product.name}</div>
+                        <div className={styles.productFooter}>
+                          <div className={styles.priceText}>₹{product.price}</div>
 
                           {quantity === 0 ? (
                             <button
@@ -731,11 +636,11 @@ export default function HomePage() {
                               ADD
                             </button>
                           ) : (
-                            <div className={styles.stepper}>
+                            <div className={styles.qtyControl}>
                               <button type="button" onClick={() => decreaseItem(product.id)}>
                                 −
                               </button>
-                              <span>{quantity}</span>
+                              <span className={styles.qtyValue}>{quantity}</span>
                               <button type="button" onClick={() => addItem(product)}>
                                 +
                               </button>
@@ -750,67 +655,59 @@ export default function HomePage() {
             </section>
           ))}
 
-        {accessGranted ? (
-        <section className={styles.favoriteSection}>
-          <div className={styles.sectionHeader}>
-            <h3>{homeData?.favoriteCategoriesTitle ?? "Favorite Categories"}</h3>
-          </div>
-          <div className={styles.favoriteGrid}>
-            {(homeData?.favoriteCategories ?? []).map((category) => (
-              <button
-                key={category.id}
-                type="button"
-                className={styles.favoriteCategoryCard}
-                onClick={() => setActiveCategory(category.name)}
-              >
-                <div
-                  className={styles.favoriteCategoryMedia}
-                  style={{
-                    backgroundImage: categoryImages[category.name]
-                      ? `linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08)), url("${categoryImages[category.name]}")`
-                      : undefined,
-                  }}
-                />
-                <div className={styles.favoriteCategoryMeta}>
-                  <span>{category.name}</span>
-                  <small>Open products</small>
-                </div>
-                <span className={styles.favoriteCategoryHeart}>♥</span>
-              </button>
-            ))}
-          </div>
-        </section>
+        {accessGranted && (homeData?.favoriteCategories ?? []).length > 0 ? (
+          <section className={styles.favoriteWrap}>
+            <div className={styles.sectionTitle}>
+              <h2>{homeData?.favoriteCategoriesTitle ?? "Favorite Categories"}</h2>
+            </div>
+            <div className={styles.favoriteGrid}>
+              {(homeData?.favoriteCategories ?? []).map((category) => (
+                <Link
+                  key={category.id}
+                  href={productHref(category.id, category.name, "home")}
+                  className={styles.favoriteCard}
+                >
+                  <div
+                    className={styles.favoriteCardMedia}
+                    style={{
+                      backgroundImage: categoryImages[category.name]
+                        ? `linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08)), url("${categoryImages[category.name]}")`
+                        : undefined,
+                    }}
+                  />
+                  <div className={`${styles.favoriteHeart} ${styles.favoriteHeartActive}`}>♥</div>
+                  <div className={styles.favoriteCardLabel}>{category.name}</div>
+                </Link>
+              ))}
+            </div>
+          </section>
         ) : null}
       </section>
 
-      {accessGranted ? (
-      <div className={styles.cartBar}>
-        <div className={styles.cartInfo}>
-          <div className={styles.stack}>
-            {previewItems.length === 0 ? (
-              <div className={styles.stackAvatar}>0</div>
-            ) : (
-              previewItems.map((item, index) => (
+      {accessGranted && totalItems > 0 ? (
+        <div className={styles.floatingCartBar}>
+          <div className={styles.floatingCartInfo}>
+            <div className={styles.avatarStack}>
+              {previewItems.map((item, index) => (
                 <div
                   key={item.id}
-                  className={styles.stackAvatar}
-                  style={{ background: item.accent, left: `${index * 22}px` }}
+                  className={styles.avatarChip}
+                  style={{ background: item.accent, left: `${index * 18}px` }}
                 >
                   {productAvatarLabel(item.name)}
                 </div>
-              ))
-            )}
+              ))}
+            </div>
+            <div>
+              <strong>{summaryLabel}</strong>
+              <p>₹{totalAmount} total</p>
+            </div>
           </div>
-          <div>
-            <strong>{summaryLabel}</strong>
-            <p>₹{totalAmount} total</p>
-          </div>
-        </div>
 
-        <Link href="/kot" className={styles.cartAction}>
-          View Cart
-        </Link>
-      </div>
+          <Link href="/kot" className={styles.floatingCartAction}>
+            View Cart
+          </Link>
+        </div>
       ) : null}
     </main>
   );

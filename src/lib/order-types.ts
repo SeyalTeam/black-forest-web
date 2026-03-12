@@ -43,9 +43,27 @@ export type HomePageData = {
   branchName: string;
   offerSlides: OfferSlide[];
   billingCategories: CategoryCard[];
+  topCategories: CategoryCard[];
   favoriteCategoriesTitle: string;
   favoriteCategories: CategoryCard[];
   ruleSections: RuleSection[];
+};
+
+export type CategoriesPageData = {
+  branchId: string;
+  branchName: string;
+  offerSlides: OfferSlide[];
+  categories: CategoryCard[];
+  topCategories: CategoryCard[];
+};
+
+export type ProductsPageData = {
+  branchId: string;
+  branchName: string;
+  categoryId: string;
+  categoryName: string;
+  topCategories: CategoryCard[];
+  products: Product[];
 };
 
 export type BranchLookupResult = {

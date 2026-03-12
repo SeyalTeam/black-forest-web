@@ -1,22 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { readBranchSession } from "@/components/branch-session";
+import { ProfileIcon, VegIcon } from "@/components/menu-icons";
 import { productAvatarLabel, useOrder } from "@/components/order-provider";
-import styles from "./page.module.css";
-
-const SESSION_BRANCH_ID_KEY = "blackforest-order-web-branch-id";
-
-function VegIcon({ isVeg }: { isVeg: boolean }) {
-  return (
-    <span
-      className={isVeg ? styles.vegIcon : styles.nonVegIcon}
-      aria-hidden="true"
-    >
-      <span />
-    </span>
-  );
-}
+import styles from "./kot-shell.module.css";
 
 export default function KotPage() {
   const {
@@ -29,10 +18,25 @@ export default function KotPage() {
     updateCookingRequest,
   } = useOrder();
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [hasAccess] = useState<boolean | null>(() => {
-    if (typeof window === "undefined") return null;
-    return Boolean(window.sessionStorage.getItem(SESSION_BRANCH_ID_KEY)?.trim());
-  });
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [branchName, setBranchName] = useState("VSeyal");
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const session = readBranchSession();
+      if (!session?.branchId) {
+        setHasAccess(false);
+        return;
+      }
+
+      setHasAccess(true);
+      setBranchName(session.branchName || "VSeyal");
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, []);
 
   const summaryLabel = totalItems === 1 ? "1 item added" : `${totalItems} items added`;
   const previewItems = useMemo(
@@ -44,25 +48,10 @@ export default function KotPage() {
     return (
       <main className={styles.page}>
         <section className={styles.shell}>
-          <header className={styles.header}>
-            <div>
-              <p className={styles.eyebrow}>Table order</p>
-              <h1 className={styles.title}>Access blocked</h1>
-            </div>
-            <Link href="/" className={styles.backLink}>
-              Back to menu
-            </Link>
-          </header>
-
-          <section className={styles.orderCard}>
-            <div className={styles.cardHeader}>
-              <h2>Location verification required</h2>
-            </div>
-            <p>
-              This page opens only after the homepage verifies your location against Branch Geo
-              Settings radius.
-            </p>
-          </section>
+          <div className={styles.statusCard}>
+            <strong>Access blocked</strong>
+            Open the homepage first and complete branch location verification.
+          </div>
         </section>
       </main>
     );
@@ -72,11 +61,7 @@ export default function KotPage() {
     return (
       <main className={styles.page}>
         <section className={styles.shell}>
-          <section className={styles.orderCard}>
-            <div className={styles.cardHeader}>
-              <h2>Checking access...</h2>
-            </div>
-          </section>
+          <div className={styles.statusCard}>Checking access...</div>
         </section>
       </main>
     );
@@ -85,38 +70,46 @@ export default function KotPage() {
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
-        <header className={styles.header}>
-          <div>
-            <p className={styles.eyebrow}>Table order</p>
-            <h1 className={styles.title}>Current KOT</h1>
+        <header className={styles.topBar}>
+          <div className={styles.branchWrap}>
+            <div className={styles.avatar}>
+              <ProfileIcon className={styles.profileIcon} />
+            </div>
+            <div>
+              <div className={styles.branchMeta}>TABLE ORDER</div>
+              <h1 className={styles.branchName}>{branchName}</h1>
+            </div>
           </div>
           <Link href="/" className={styles.backLink}>
             Back to menu
           </Link>
         </header>
 
-        <div className={styles.infoRow}>
-          <div className={styles.infoChip}>Shared Tables</div>
-          <div className={styles.infoChip}>{summaryLabel}</div>
+        <div className={styles.chipRow}>
+          <div className={styles.chip}>
+            <span className={styles.chipIcon}>⌂</span>
+            Shared Tables
+          </div>
+          <div className={styles.chip}>
+            <span className={styles.chipIcon}>👜</span>
+            {summaryLabel}
+          </div>
         </div>
 
         <section className={styles.orderCard}>
-          <div className={styles.cardHeader}>
+          <div className={styles.titleRow}>
             <h2>Current Order</h2>
-            <span>{cartItems.length} products</span>
+            <div className={styles.titleLine} />
           </div>
 
           <div className={styles.itemList}>
             {cartItems.map((item) => (
               <article key={item.id} className={styles.itemRow}>
                 <div className={styles.itemLead}>
-                  <div className={styles.itemIconWrap}>
-                    <VegIcon isVeg={item.isVeg} />
-                  </div>
+                  <VegIcon isVeg={item.isVeg} />
                   <div className={styles.itemMeta}>
                     <h3>{item.name}</h3>
                     <p>{item.description}</p>
-                    {cookingRequest ? <small>Request saved for kitchen</small> : null}
                   </div>
                 </div>
 
@@ -125,25 +118,25 @@ export default function KotPage() {
                     <button type="button" onClick={() => decreaseItem(item.id)}>
                       −
                     </button>
-                    <span>{item.quantity}</span>
+                    <span className={styles.qtyValue}>{item.quantity}</span>
                     <button type="button" onClick={() => addItem(item)}>
                       +
                     </button>
                   </div>
-                  <strong>₹{item.price * item.quantity}</strong>
+                  <div className={styles.itemPrice}>₹{item.price * item.quantity}</div>
                 </div>
               </article>
             ))}
           </div>
 
           <div className={styles.inlineActions}>
-            <Link href="/" className={styles.secondaryAction}>
-              <span>+</span>
+            <Link href="/" className={styles.inlineAction}>
+              <span>＋</span>
               Add Items
             </Link>
             <button
               type="button"
-              className={styles.secondaryAction}
+              className={styles.inlineAction}
               onClick={() => setIsEditorOpen((current) => !current)}
             >
               <span>✎</span>
@@ -177,7 +170,7 @@ export default function KotPage() {
               <div
                 key={item.id}
                 className={styles.previewAvatar}
-                style={{ background: item.accent, left: `${index * 24}px` }}
+                style={{ background: item.accent, left: `${index * 20}px` }}
               >
                 {productAvatarLabel(item.name)}
               </div>
