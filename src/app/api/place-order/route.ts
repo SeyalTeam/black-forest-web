@@ -38,6 +38,168 @@ function normalizePaymentMethod(value: unknown) {
   return "cash";
 }
 
+function parseTableNumberToken(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const direct = Number.parseInt(trimmed, 10);
+  if (Number.isFinite(direct)) {
+    return direct;
+  }
+
+  const withoutPrefix = trimmed.replace(/^table[\s\-_:]*/i, "");
+  const parsed = Number.parseInt(withoutPrefix, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseSections(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const map =
+        entry && typeof entry === "object" && !Array.isArray(entry)
+          ? (entry as Record<string, unknown>)
+          : null;
+      if (!map) return null;
+      return {
+        name: toTrimmedText(map.name),
+        tableCount: Number.parseInt(toTrimmedText(map.tableCount), 10) || 0,
+      };
+    })
+    .filter(
+      (section): section is { name: string; tableCount: number } => section !== null,
+    );
+}
+
+async function resolveLiveSectionForTableNumber({
+  tableNumber,
+  branchId,
+  token,
+}: {
+  tableNumber: number;
+  branchId: string;
+  token: string;
+}) {
+  const tablesUrl = `${API_BASE}/tables?where[branch][equals]=${encodeURIComponent(branchId)}&limit=1&depth=1`;
+  const response = await fetch(tablesUrl, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as {
+    docs?: Array<Record<string, unknown>>;
+  };
+  const root = payload.docs?.[0];
+  if (!root) {
+    return null;
+  }
+
+  const sections = parseSections(root.sections);
+  for (const section of sections) {
+    if (tableNumber > 0 && tableNumber <= section.tableCount && section.name) {
+      return section.name;
+    }
+  }
+
+  return null;
+}
+
+async function isLiveTableOccupied({
+  tableNumber,
+  sectionName,
+  branchId,
+  token,
+}: {
+  tableNumber: string;
+  sectionName: string;
+  branchId: string;
+  token: string;
+}) {
+  const lookupParams = new URLSearchParams({
+    "where[status][in]": "pending,ordered,confirmed,prepared,delivered",
+    "where[tableDetails.tableNumber][equals]": tableNumber,
+    "where[tableDetails.section][equals]": sectionName,
+    "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
+    "where[branch][equals]": branchId,
+    limit: "1",
+    depth: "0",
+  });
+
+  const response = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    return false;
+  }
+
+  const payload = (await response.json()) as BillingLookupResponse;
+  return Boolean(payload.docs?.length);
+}
+
+async function resolveTableTarget({
+  tableNumberInput,
+  branchId,
+  token,
+}: {
+  tableNumberInput: string;
+  branchId: string;
+  token: string;
+}) {
+  const tableNumber = tableNumberInput.trim();
+  const parsedTable = parseTableNumberToken(tableNumberInput);
+  if (parsedTable === null || !tableNumber) {
+    return {
+      tableNumber,
+      section: SHARED_TABLE_SECTION,
+      useShared: true,
+    };
+  }
+
+  const liveSection = await resolveLiveSectionForTableNumber({
+    tableNumber: parsedTable,
+    branchId,
+    token,
+  });
+  if (!liveSection) {
+    return {
+      tableNumber,
+      section: SHARED_TABLE_SECTION,
+      useShared: true,
+    };
+  }
+
+  const occupied = await isLiveTableOccupied({
+    tableNumber,
+    sectionName: liveSection,
+    branchId,
+    token,
+  });
+  if (occupied) {
+    return {
+      tableNumber,
+      section: SHARED_TABLE_SECTION,
+      useShared: true,
+    };
+  }
+
+  return {
+    tableNumber,
+    section: liveSection,
+    useShared: false,
+  };
+}
+
 function getIndiaDayStartIso() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
@@ -138,13 +300,13 @@ export async function POST(request: NextRequest) {
     };
 
     const branchId = toTrimmedText(body.branchId);
-    const tableNumber = toTrimmedText(body.tableNumber);
+    const tableNumberInput = toTrimmedText(body.tableNumber);
     const incomingItems = Array.isArray(body.items) ? body.items : [];
 
     if (!branchId) {
       return Response.json({ message: "Branch id is required" }, { status: 400 });
     }
-    if (!tableNumber) {
+    if (!tableNumberInput) {
       return Response.json({ message: "Table number is required" }, { status: 400 });
     }
 
@@ -155,6 +317,14 @@ export async function POST(request: NextRequest) {
     if (billingItems.length === 0) {
       return Response.json({ message: "At least one valid item is required" }, { status: 400 });
     }
+
+    const resolvedTarget = await resolveTableTarget({
+      tableNumberInput,
+      branchId,
+      token,
+    });
+    const tableNumber = resolvedTarget.tableNumber;
+    const sectionName = resolvedTarget.section;
 
     const newTotalAmount = billingItems.reduce(
       (sum, item) => sum + toFiniteNumber(item.subtotal),
@@ -172,7 +342,7 @@ export async function POST(request: NextRequest) {
     const lookupParams = new URLSearchParams({
       "where[status][in]": "pending,ordered",
       "where[tableDetails.tableNumber][equals]": tableNumber,
-      "where[tableDetails.section][equals]": SHARED_TABLE_SECTION,
+      "where[tableDetails.section][equals]": sectionName,
       "where[branch][equals]": branchId,
       "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
       limit: "1",
@@ -208,7 +378,7 @@ export async function POST(request: NextRequest) {
       applyCustomerOffer: existingBill?.applyCustomerOffer === true,
       status: toTrimmedText(existingBill?.status) || "pending",
       tableDetails: {
-        section: SHARED_TABLE_SECTION,
+        section: sectionName,
         tableNumber,
       },
     };
@@ -247,6 +417,9 @@ export async function POST(request: NextRequest) {
       billId: toTrimmedText(writePayload.id) || existingId,
       invoiceNumber: toTrimmedText(writePayload.invoiceNumber),
       merged: Boolean(existingId),
+      tableNumber,
+      section: sectionName,
+      useShared: resolvedTarget.useShared,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to place order";

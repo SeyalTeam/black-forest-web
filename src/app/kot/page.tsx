@@ -88,7 +88,7 @@ export default function KotPage() {
       return;
     }
     if (!trimmedTableNumber) {
-      setOrderError("Enter a shared table number before placing the order.");
+      setOrderError("Enter a table number before placing the order.");
       setOrderMessage("");
       return;
     }
@@ -300,7 +300,7 @@ export default function KotPage() {
               if (orderMessage) setOrderMessage("");
             }}
             className={styles.sharedTableInput}
-            placeholder="Enter shared table number"
+            placeholder="Enter table number"
           />
           <button
             type="button"
