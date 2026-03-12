@@ -285,6 +285,16 @@ function normalizeCustomerDetails(value: unknown) {
   };
 }
 
+function mergeCustomerDetails(existingValue: unknown, incomingValue: unknown) {
+  const existing = normalizeCustomerDetails(existingValue);
+  const incoming = normalizeCustomerDetails(incomingValue);
+  return {
+    name: incoming.name || existing.name,
+    phoneNumber: incoming.phoneNumber || existing.phoneNumber,
+    address: incoming.address || existing.address,
+  };
+}
+
 function mergeNotes(existingNotes: unknown, newNotes: string) {
   const existing = toTrimmedText(existingNotes);
   if (!existing) return newNotes;
@@ -347,12 +357,17 @@ export async function POST(request: NextRequest) {
       branchId?: string;
       tableNumber?: string;
       preferredSection?: string;
+      customerDetails?: {
+        name?: string;
+        phoneNumber?: string;
+      };
       items?: IncomingOrderItem[];
     };
 
     const branchId = toTrimmedText(body.branchId);
     const tableNumberInput = toTrimmedText(body.tableNumber);
     const preferredSection = toTrimmedText(body.preferredSection);
+    const incomingCustomerDetails = normalizeCustomerDetails(body.customerDetails);
     const incomingItems = Array.isArray(body.items) ? body.items : [];
 
     if (!branchId) {
@@ -426,7 +441,10 @@ export async function POST(request: NextRequest) {
       branch: branchId,
       items: existingItems.concat(billingItems),
       totalAmount: toFiniteNumber(existingBill?.totalAmount) + newTotalAmount,
-      customerDetails: normalizeCustomerDetails(existingBill?.customerDetails),
+      customerDetails: mergeCustomerDetails(
+        existingBill?.customerDetails,
+        incomingCustomerDetails,
+      ),
       paymentMethod: normalizePaymentMethod(existingBill?.paymentMethod),
       applyCustomerOffer: existingBill?.applyCustomerOffer === true,
       status: toTrimmedText(existingBill?.status) || "pending",

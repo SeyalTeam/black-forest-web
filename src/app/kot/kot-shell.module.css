@@ -292,6 +292,280 @@
   word-break: break-word;
 }
 
+.customerModal,
+.historyModal {
+  width: min(520px, 100%);
+  padding: 26px 24px 24px;
+  border-radius: 30px;
+  background: linear-gradient(180deg, #191919 0%, #121212 100%);
+  box-shadow: 0 28px 64px rgba(14, 12, 10, 0.34);
+}
+
+.historyModal {
+  max-height: min(78vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+
+.customerModalHeader,
+.historyModalHeader {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 12px;
+}
+
+.customerModalTitle,
+.historyModalTitle {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.95rem;
+  font-weight: 900;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.historyModalTitle {
+  font-size: 1.5rem;
+}
+
+.modalIconSpacer {
+  width: 42px;
+  height: 42px;
+}
+
+.historyButton,
+.customerModalClose {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.historyButton {
+  color: #4ade80;
+}
+
+.historyButtonDisabled {
+  color: rgba(255, 255, 255, 0.3);
+  cursor: not-allowed;
+}
+
+.historyIcon,
+.customerModalCloseIcon {
+  width: 26px;
+  height: 26px;
+}
+
+.historySpinner {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  border: 2px solid rgba(255, 255, 255, 0.26);
+  border-top-color: #0a84ff;
+  border-radius: 999px;
+  animation: spin 0.75s linear infinite;
+}
+
+.customerFieldLabel {
+  display: block;
+  margin-top: 22px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.customerField {
+  margin-top: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(10, 132, 255, 0.5);
+  background: #080808;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.customerInput {
+  width: 100%;
+  height: 58px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  font-size: 1rem;
+  outline: none;
+}
+
+.customerInput::placeholder {
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.customerLookupLoading,
+.customerLookupError,
+.customerHint {
+  margin-top: 12px;
+}
+
+.customerLookupLoading {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.customerLookupError {
+  color: #ff6a77;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.customerHint {
+  color: #e6b04b;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.customerSummaryCard {
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: #121212;
+  color: #ffffff;
+  text-align: left;
+}
+
+.customerSummaryCardActive {
+  cursor: pointer;
+}
+
+.customerSummaryCard:disabled {
+  opacity: 0.94;
+}
+
+.customerSummaryName {
+  color: #ffffff;
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.customerSummaryMeta,
+.historySummaryMeta,
+.historyMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.customerDialogActions {
+  margin-top: 24px;
+  display: flex;
+  gap: 12px;
+}
+
+.customerSkipButton,
+.customerSubmitButton {
+  min-height: 54px;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.customerSkipButton {
+  flex: 1 1 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.customerSubmitButton {
+  flex: 1.2 1 0;
+  border: 0;
+  background: #0a84ff;
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(10, 132, 255, 0.26);
+}
+
+.customerSkipButton:disabled,
+.customerSubmitButton:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.historySummaryCard {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.historySummaryTitle {
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.historyList {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.historyRow {
+  padding: 14px 15px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.historyRowTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #ffffff;
+}
+
+.historyAmount {
+  color: #4ade80;
+  font-weight: 800;
+}
+
+.historyEmpty {
+  margin-top: 18px;
+  padding: 18px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .modalBackdrop {
   position: fixed;
   inset: 0;
@@ -580,6 +854,76 @@
     width: min(360px, 100%);
     padding: 22px 20px 20px;
     border-radius: 28px;
+  }
+
+  .customerModal,
+  .historyModal {
+    width: min(360px, 100%);
+    padding: 20px 18px 18px;
+    border-radius: 26px;
+  }
+
+  .customerModalHeader,
+  .historyModalHeader {
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
+    gap: 8px;
+  }
+
+  .modalIconSpacer,
+  .historyButton,
+  .customerModalClose {
+    width: 36px;
+    height: 36px;
+  }
+
+  .historyIcon,
+  .customerModalCloseIcon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .customerModalTitle {
+    font-size: 1.55rem;
+  }
+
+  .historyModalTitle {
+    font-size: 1.22rem;
+  }
+
+  .customerFieldLabel {
+    margin-top: 18px;
+    font-size: 0.92rem;
+  }
+
+  .customerInput {
+    height: 52px;
+    font-size: 0.96rem;
+  }
+
+  .customerLookupLoading,
+  .customerLookupError,
+  .customerHint,
+  .customerSummaryMeta,
+  .historySummaryMeta,
+  .historyMeta {
+    font-size: 0.82rem;
+  }
+
+  .customerDialogActions {
+    flex-direction: column;
+  }
+
+  .customerSkipButton,
+  .customerSubmitButton {
+    width: 100%;
+    min-height: 50px;
+    font-size: 0.98rem;
+  }
+
+  .historySummaryCard,
+  .historyRow,
+  .historyEmpty {
+    margin-top: 14px;
   }
 
   .noteModalTitle {

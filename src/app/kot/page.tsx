@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { readBranchSession, readTableSession } from "@/components/branch-session";
 import {
@@ -8,6 +8,8 @@ import {
   BagIcon,
   BellIcon,
   CartIcon,
+  CloseIcon,
+  HistoryIcon,
   NoteAddIcon,
   NoteSavedIcon,
   PinIcon,
@@ -15,6 +17,76 @@ import {
 } from "@/components/menu-icons";
 import { useOrder } from "@/components/order-provider";
 import styles from "./kot-shell.module.css";
+
+type CustomerDetailsConfig = {
+  showCustomerDetails: boolean;
+  allowSkip: boolean;
+  autoSubmit: boolean;
+  showHistory: boolean;
+};
+
+type CustomerLookupBill = {
+  id: string;
+  invoiceNumber: string;
+  status: string;
+  paymentMethod: string;
+  totalAmount: number;
+  createdAt: string;
+  tableNumber: string;
+  section: string;
+  customerName: string;
+};
+
+type CustomerLookupResult = {
+  name: string;
+  phoneNumber: string;
+  totalBills: number;
+  totalAmount: number;
+  isNewCustomer: boolean;
+  bills: CustomerLookupBill[];
+};
+
+const defaultCustomerConfig: CustomerDetailsConfig = {
+  showCustomerDetails: true,
+  allowSkip: true,
+  autoSubmit: true,
+  showHistory: true,
+};
+
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function formatMoney(amount: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount || 0);
+}
+
+function formatShortDate(value: string) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(parsed);
+}
+
+function titleCase(value: string) {
+  if (!value) return "";
+  return value
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
 
 export default function KotPage() {
   const router = useRouter();
@@ -34,9 +106,24 @@ export default function KotPage() {
   const [branchName, setBranchName] = useState("VSeyal");
   const [sharedTableNumber, setSharedTableNumber] = useState("");
   const [preferredSection, setPreferredSection] = useState("");
+  const [customerConfig, setCustomerConfig] =
+    useState<CustomerDetailsConfig>(defaultCustomerConfig);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [customerPhoneDraft, setCustomerPhoneDraft] = useState("");
+  const [customerNameDraft, setCustomerNameDraft] = useState("");
+  const [customerLookupData, setCustomerLookupData] = useState<CustomerLookupResult | null>(null);
+  const [historyLookupData, setHistoryLookupData] = useState<CustomerLookupResult | null>(null);
+  const [isCustomerLookupLoading, setIsCustomerLookupLoading] = useState(false);
+  const [isHistoryLookupLoading, setIsHistoryLookupLoading] = useState(false);
+  const [customerLookupError, setCustomerLookupError] = useState("");
+  const [customerModalError, setCustomerModalError] = useState("");
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [orderMessage, setOrderMessage] = useState("");
   const [orderError, setOrderError] = useState("");
+  const lookupDebounceRef = useRef<number | null>(null);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -61,15 +148,75 @@ export default function KotPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!branchId) {
+      return;
+    }
+
+    let isDisposed = false;
+
+    const loadCustomerConfig = async () => {
+      try {
+        const response = await fetch(
+          `/api/customer-details-config?branchId=${encodeURIComponent(branchId)}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as Partial<CustomerDetailsConfig>;
+        if (isDisposed) {
+          return;
+        }
+
+        setCustomerConfig({
+          showCustomerDetails: payload.showCustomerDetails ?? true,
+          allowSkip: payload.allowSkip ?? true,
+          autoSubmit: payload.autoSubmit ?? true,
+          showHistory: payload.showHistory ?? true,
+        });
+      } catch {
+        if (!isDisposed) {
+          setCustomerConfig(defaultCustomerConfig);
+        }
+      }
+    };
+
+    void loadCustomerConfig();
+    return () => {
+      isDisposed = true;
+    };
+  }, [branchId]);
+
+  useEffect(() => {
+    return () => {
+      if (lookupDebounceRef.current !== null) {
+        window.clearTimeout(lookupDebounceRef.current);
+      }
+    };
+  }, []);
+
   const summaryLabel = totalItems === 1 ? "1 item" : `${totalItems} items`;
   const activeEditingRequestItemId =
     editingRequestItemId && cartItems.some((item) => item.id === editingRequestItemId)
       ? editingRequestItemId
       : null;
+  const normalizedCustomerPhoneDraft = normalizePhone(customerPhoneDraft);
+  const hasExistingCustomerDetails =
+    customerName.trim().length > 0 || customerPhone.trim().length > 0;
+  const canOpenCustomerHistory =
+    customerConfig.showHistory &&
+    normalizedCustomerPhoneDraft.length >= 10 &&
+    !isHistoryLookupLoading;
+  const showCustomerSummary =
+    normalizedCustomerPhoneDraft.length >= 10 && customerLookupData !== null;
+
   const closeRequestEditor = () => {
     setEditingRequestItemId(null);
     setRequestDraft("");
   };
+
   const returnToMenu = () => {
     if (window.history.length > 1) {
       router.back();
@@ -86,7 +233,64 @@ export default function KotPage() {
     updateCookingRequest(activeEditingRequestItemId, requestDraft);
     closeRequestEditor();
   };
-  const submitOrder = async () => {
+
+  const fetchCustomerLookup = useCallback(
+    async (phone: string, limit = 20) => {
+      const normalizedPhone = normalizePhone(phone);
+      if (!branchId || normalizedPhone.length < 10) {
+        return null;
+      }
+
+      const response = await fetch(
+        `/api/customer-lookup?branchId=${encodeURIComponent(
+          branchId,
+        )}&phoneNumber=${encodeURIComponent(normalizedPhone)}&limit=${limit}`,
+        { cache: "no-store" },
+      );
+
+      const payload = (await response.json()) as CustomerLookupResult & { message?: string };
+      if (!response.ok) {
+        throw new Error(payload.message || "Unable to fetch customer details");
+      }
+
+      return payload;
+    },
+    [branchId],
+  );
+
+  const openCustomerModal = () => {
+    setCustomerPhoneDraft(customerPhone);
+    setCustomerNameDraft(customerName);
+    setCustomerLookupData(null);
+    setHistoryLookupData(null);
+    setCustomerLookupError("");
+    setCustomerModalError("");
+    setIsHistoryModalOpen(false);
+    setIsHistoryLookupLoading(false);
+    setIsCustomerModalOpen(true);
+  };
+
+  const closeCustomerModal = () => {
+    setIsCustomerModalOpen(false);
+    setCustomerModalError("");
+    setCustomerLookupError("");
+    setIsHistoryModalOpen(false);
+    setIsHistoryLookupLoading(false);
+    setHistoryLookupData(null);
+    if (lookupDebounceRef.current !== null) {
+      window.clearTimeout(lookupDebounceRef.current);
+      lookupDebounceRef.current = null;
+    }
+  };
+
+  const closeHistoryModal = () => {
+    setIsHistoryModalOpen(false);
+  };
+
+  const performOrderSubmission = async (customerDetails?: {
+    name?: string;
+    phoneNumber?: string;
+  }) => {
     const trimmedTableNumber = sharedTableNumber.trim();
     if (!branchId) {
       setOrderError("Branch is not ready yet. Open the homepage again.");
@@ -119,6 +323,10 @@ export default function KotPage() {
           branchName,
           tableNumber: trimmedTableNumber,
           preferredSection,
+          customerDetails: {
+            name: customerDetails?.name?.trim() ?? "",
+            phoneNumber: customerDetails?.phoneNumber?.trim() ?? "",
+          },
           items: cartItems.map((item) => ({
             id: item.id,
             name: item.name,
@@ -157,6 +365,149 @@ export default function KotPage() {
     } finally {
       setIsSubmittingOrder(false);
     }
+  };
+
+  const submitCustomerDetails = async ({ skip }: { skip: boolean }) => {
+    if (skip) {
+      setCustomerName("");
+      setCustomerPhone("");
+      closeCustomerModal();
+      await performOrderSubmission();
+      return;
+    }
+
+    const trimmedName = customerNameDraft.trim();
+    const normalizedPhone = normalizePhone(customerPhoneDraft);
+
+    if (!trimmedName && !normalizedPhone) {
+      setCustomerModalError("Please enter customer name or phone number.");
+      return;
+    }
+
+    if (normalizedPhone && normalizedPhone.length < 10) {
+      setCustomerModalError("Enter a valid 10-digit phone number or clear the field.");
+      return;
+    }
+
+    setCustomerName(trimmedName);
+    setCustomerPhone(normalizedPhone);
+    closeCustomerModal();
+    await performOrderSubmission({
+      name: trimmedName,
+      phoneNumber: normalizedPhone,
+    });
+  };
+
+  const openCustomerHistory = async () => {
+    if (!canOpenCustomerHistory) {
+      return;
+    }
+
+    setIsHistoryLookupLoading(true);
+    setCustomerLookupError("");
+    try {
+      const payload = await fetchCustomerLookup(customerPhoneDraft, 50);
+      if (!payload) {
+        throw new Error("No customer history found");
+      }
+      setHistoryLookupData(payload);
+      if (payload.name) {
+        setCustomerNameDraft((current) => current.trim() || payload.name);
+      }
+      setIsHistoryModalOpen(true);
+    } catch (error) {
+      setCustomerLookupError(
+        error instanceof Error ? error.message : "Unable to load customer history",
+      );
+    } finally {
+      setIsHistoryLookupLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isCustomerModalOpen) {
+      return;
+    }
+
+    const normalizedPhone = normalizePhone(customerPhoneDraft);
+    if (lookupDebounceRef.current !== null) {
+      window.clearTimeout(lookupDebounceRef.current);
+      lookupDebounceRef.current = null;
+    }
+
+    if (normalizedPhone.length < 10) {
+      setCustomerLookupData(null);
+      setCustomerLookupError("");
+      setIsCustomerLookupLoading(false);
+      return;
+    }
+
+    let isDisposed = false;
+    setCustomerLookupError("");
+    setIsCustomerLookupLoading(true);
+    lookupDebounceRef.current = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const payload = await fetchCustomerLookup(normalizedPhone, 20);
+          if (isDisposed || normalizePhone(customerPhoneDraft) !== normalizedPhone) {
+            return;
+          }
+          setCustomerLookupData(payload);
+          if (payload?.name) {
+            setCustomerNameDraft((current) => current.trim() || payload.name);
+          }
+        } catch (error) {
+          if (isDisposed || normalizePhone(customerPhoneDraft) !== normalizedPhone) {
+            return;
+          }
+          setCustomerLookupData(null);
+          setCustomerLookupError(
+            error instanceof Error ? error.message : "Unable to fetch customer details",
+          );
+        } finally {
+          if (!isDisposed && normalizePhone(customerPhoneDraft) === normalizedPhone) {
+            setIsCustomerLookupLoading(false);
+          }
+        }
+      })();
+    }, 300);
+
+    return () => {
+      isDisposed = true;
+      if (lookupDebounceRef.current !== null) {
+        window.clearTimeout(lookupDebounceRef.current);
+        lookupDebounceRef.current = null;
+      }
+    };
+  }, [customerPhoneDraft, fetchCustomerLookup, isCustomerModalOpen]);
+
+  const submitOrder = async () => {
+    const trimmedTableNumber = sharedTableNumber.trim();
+    setOrderError("");
+    setOrderMessage("");
+
+    if (!branchId) {
+      setOrderError("Branch is not ready yet. Open the homepage again.");
+      return;
+    }
+    if (!trimmedTableNumber) {
+      setOrderError("Enter a table number before placing the order.");
+      return;
+    }
+    if (cartItems.length === 0) {
+      setOrderError("Add at least one item before placing the order.");
+      return;
+    }
+
+    if (customerConfig.showCustomerDetails && !hasExistingCustomerDetails) {
+      openCustomerModal();
+      return;
+    }
+
+    await performOrderSubmission({
+      name: customerName,
+      phoneNumber: customerPhone,
+    });
   };
 
   if (hasAccess === false) {
@@ -325,6 +676,224 @@ export default function KotPage() {
           {orderMessage ? <div className={styles.orderFeedbackSuccess}>{orderMessage}</div> : null}
         </div>
       </div>
+
+      {isCustomerModalOpen ? (
+        <div className={styles.modalBackdrop}>
+          <div
+            className={styles.customerModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customer-details-title"
+          >
+            <div className={styles.customerModalHeader}>
+              {customerConfig.showHistory ? (
+                <button
+                  type="button"
+                  className={`${styles.historyButton} ${
+                    !canOpenCustomerHistory ? styles.historyButtonDisabled : ""
+                  }`}
+                  onClick={() => {
+                    void openCustomerHistory();
+                  }}
+                  disabled={!canOpenCustomerHistory}
+                  aria-label="Customer history"
+                >
+                  {isHistoryLookupLoading ? (
+                    <span className={styles.historySpinner} />
+                  ) : (
+                    <HistoryIcon className={styles.historyIcon} />
+                  )}
+                </button>
+              ) : (
+                <div className={styles.modalIconSpacer} />
+              )}
+
+              <h2 id="customer-details-title" className={styles.customerModalTitle}>
+                Customer Details
+              </h2>
+
+              {customerConfig.allowSkip ? (
+                <button
+                  type="button"
+                  className={styles.customerModalClose}
+                  onClick={closeCustomerModal}
+                  aria-label="Close customer details"
+                >
+                  <CloseIcon className={styles.customerModalCloseIcon} />
+                </button>
+              ) : (
+                <div className={styles.modalIconSpacer} />
+              )}
+            </div>
+
+            <label className={styles.customerFieldLabel} htmlFor="customer-phone">
+              Phone Number
+            </label>
+            <div className={styles.customerField}>
+              <input
+                id="customer-phone"
+                value={customerPhoneDraft}
+                onChange={(event) => {
+                  setCustomerPhoneDraft(normalizePhone(event.target.value).slice(0, 10));
+                  setCustomerModalError("");
+                  setCustomerLookupError("");
+                  setHistoryLookupData(null);
+                }}
+                className={styles.customerInput}
+                placeholder="Enter phone number"
+                inputMode="numeric"
+                autoFocus
+              />
+            </div>
+
+            {isCustomerLookupLoading ? (
+              <div className={styles.customerLookupLoading}>
+                <span className={styles.historySpinner} />
+                Looking up customer...
+              </div>
+            ) : null}
+
+            {customerLookupError ? (
+              <div className={styles.customerLookupError}>{customerLookupError}</div>
+            ) : null}
+
+            <label className={styles.customerFieldLabel} htmlFor="customer-name">
+              Customer Name
+            </label>
+            <div className={styles.customerField}>
+              <input
+                id="customer-name"
+                value={customerNameDraft}
+                onChange={(event) => {
+                  setCustomerNameDraft(event.target.value);
+                  setCustomerModalError("");
+                }}
+                className={styles.customerInput}
+                placeholder="Enter customer name"
+              />
+            </div>
+
+            {showCustomerSummary ? (
+              <button
+                type="button"
+                className={`${styles.customerSummaryCard} ${
+                  canOpenCustomerHistory ? styles.customerSummaryCardActive : ""
+                }`}
+                onClick={() => {
+                  void openCustomerHistory();
+                }}
+                disabled={!canOpenCustomerHistory}
+              >
+                <div className={styles.customerSummaryName}>
+                  {customerLookupData?.name ||
+                    (customerLookupData?.isNewCustomer ? "New customer" : "Customer details")}
+                </div>
+                <div className={styles.customerSummaryMeta}>
+                  <span>{customerLookupData?.totalBills ?? 0} bills</span>
+                  <span>{formatMoney(customerLookupData?.totalAmount ?? 0)} spent</span>
+                </div>
+              </button>
+            ) : (
+              <div className={styles.customerHint}>
+                Enter a 10-digit phone number to load saved customer details and history.
+              </div>
+            )}
+
+            {customerModalError ? (
+              <div className={styles.customerLookupError}>{customerModalError}</div>
+            ) : null}
+
+            <div className={styles.customerDialogActions}>
+              {customerConfig.allowSkip ? (
+                <button
+                  type="button"
+                  className={styles.customerSkipButton}
+                  onClick={() => {
+                    void submitCustomerDetails({ skip: true });
+                  }}
+                  disabled={isSubmittingOrder}
+                >
+                  Skip
+                </button>
+              ) : null}
+
+              <button
+                type="button"
+                className={styles.customerSubmitButton}
+                onClick={() => {
+                  void submitCustomerDetails({ skip: false });
+                }}
+                disabled={isSubmittingOrder}
+              >
+                {isSubmittingOrder ? "Submitting..." : "Submit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isCustomerModalOpen && isHistoryModalOpen ? (
+        <div className={styles.modalBackdrop}>
+          <div
+            className={styles.historyModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customer-history-title"
+          >
+            <div className={styles.historyModalHeader}>
+              <h3 id="customer-history-title" className={styles.historyModalTitle}>
+                Customer History
+              </h3>
+              <button
+                type="button"
+                className={styles.customerModalClose}
+                onClick={closeHistoryModal}
+                aria-label="Close customer history"
+              >
+                <CloseIcon className={styles.customerModalCloseIcon} />
+              </button>
+            </div>
+
+            <div className={styles.historySummaryCard}>
+              <div className={styles.historySummaryTitle}>
+                {historyLookupData?.name || customerNameDraft.trim() || "Customer"}
+              </div>
+              <div className={styles.historySummaryMeta}>
+                <span>{historyLookupData?.totalBills ?? 0} bills</span>
+                <span>{formatMoney(historyLookupData?.totalAmount ?? 0)} spent</span>
+              </div>
+            </div>
+
+            {historyLookupData?.bills.length ? (
+              <div className={styles.historyList}>
+                {historyLookupData.bills.map((bill) => (
+                  <article key={bill.id || bill.invoiceNumber} className={styles.historyRow}>
+                    <div className={styles.historyRowTop}>
+                      <strong>{bill.invoiceNumber || bill.id || "Previous Bill"}</strong>
+                      <span className={styles.historyAmount}>{formatMoney(bill.totalAmount)}</span>
+                    </div>
+                    <div className={styles.historyMeta}>
+                      <span>{formatShortDate(bill.createdAt)}</span>
+                      <span>{titleCase(bill.paymentMethod || "cash")}</span>
+                      <span>{titleCase(bill.status || "completed")}</span>
+                    </div>
+                    {bill.tableNumber || bill.section ? (
+                      <div className={styles.historyMeta}>
+                        <span>{bill.section || "Table"}</span>
+                        <span>{bill.tableNumber ? `Table ${bill.tableNumber}` : ""}</span>
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className={styles.historyEmpty}>
+                No previous completed bills were found for this customer yet.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {activeEditingRequestItemId ? (
         <div className={styles.modalBackdrop} onClick={closeRequestEditor}>
