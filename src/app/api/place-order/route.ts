@@ -26,6 +26,17 @@ function toFiniteNumber(value: unknown) {
   return 0;
 }
 
+function toFiniteInteger(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value.trim(), 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -66,7 +77,7 @@ function parseSections(value: unknown) {
       if (!map) return null;
       return {
         name: toTrimmedText(map.name),
-        tableCount: Number.parseInt(toTrimmedText(map.tableCount), 10) || 0,
+        tableCount: toFiniteInteger(map.tableCount),
       };
     })
     .filter(
@@ -74,7 +85,7 @@ function parseSections(value: unknown) {
     );
 }
 
-async function resolveLiveSectionForTableNumber({
+async function resolveLiveSectionsForTableNumber({
   tableNumber,
   branchId,
   token,
@@ -83,7 +94,7 @@ async function resolveLiveSectionForTableNumber({
   branchId: string;
   token: string;
 }) {
-  const tablesUrl = `${API_BASE}/tables?where[branch][equals]=${encodeURIComponent(branchId)}&limit=1&depth=1`;
+  const tablesUrl = `${API_BASE}/tables?where[branch][equals]=${encodeURIComponent(branchId)}&limit=100&depth=1`;
   const response = await fetch(tablesUrl, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -91,25 +102,24 @@ async function resolveLiveSectionForTableNumber({
     cache: "no-store",
   });
   if (!response.ok) {
-    return null;
+    return [];
   }
 
   const payload = (await response.json()) as {
     docs?: Array<Record<string, unknown>>;
   };
-  const root = payload.docs?.[0];
-  if (!root) {
-    return null;
-  }
+  const sectionNames = new Set<string>();
 
-  const sections = parseSections(root.sections);
-  for (const section of sections) {
-    if (tableNumber > 0 && tableNumber <= section.tableCount && section.name) {
-      return section.name;
+  for (const root of payload.docs ?? []) {
+    const sections = parseSections(root.sections);
+    for (const section of sections) {
+      if (tableNumber > 0 && tableNumber <= section.tableCount && section.name) {
+        sectionNames.add(section.name);
+      }
     }
   }
 
-  return null;
+  return Array.from(sectionNames);
 }
 
 async function isLiveTableOccupied({
@@ -166,12 +176,12 @@ async function resolveTableTarget({
     };
   }
 
-  const liveSection = await resolveLiveSectionForTableNumber({
+  const liveSections = await resolveLiveSectionsForTableNumber({
     tableNumber: parsedTable,
     branchId,
     token,
   });
-  if (!liveSection) {
+  if (liveSections.length === 0) {
     return {
       tableNumber,
       section: SHARED_TABLE_SECTION,
@@ -179,24 +189,26 @@ async function resolveTableTarget({
     };
   }
 
-  const occupied = await isLiveTableOccupied({
-    tableNumber,
-    sectionName: liveSection,
-    branchId,
-    token,
-  });
-  if (occupied) {
-    return {
+  for (const liveSection of liveSections) {
+    const occupied = await isLiveTableOccupied({
       tableNumber,
-      section: SHARED_TABLE_SECTION,
-      useShared: true,
-    };
+      sectionName: liveSection,
+      branchId,
+      token,
+    });
+    if (!occupied) {
+      return {
+        tableNumber,
+        section: liveSection,
+        useShared: false,
+      };
+    }
   }
 
   return {
     tableNumber,
-    section: liveSection,
-    useShared: false,
+    section: SHARED_TABLE_SECTION,
+    useShared: true,
   };
 }
 
