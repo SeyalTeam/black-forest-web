@@ -396,12 +396,35 @@
   width: 100%;
   height: 64px;
   border-radius: 20px;
+  border: 0;
   background: #ef4f5f;
   color: #ffffff;
   font-size: 1.25rem;
   font-weight: 900;
   letter-spacing: 0.03em;
   box-shadow: 0 14px 24px rgba(184, 58, 74, 0.24);
+  cursor: pointer;
+}
+
+.orderButton:disabled {
+  cursor: wait;
+  opacity: 0.78;
+}
+
+.orderFeedbackError,
+.orderFeedbackSuccess {
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.orderFeedbackError {
+  color: #ca3d4d;
+}
+
+.orderFeedbackSuccess {
+  color: #16914c;
 }
 
 .statusCard {
@@ -572,5 +595,10 @@
   .sharedTableInput,
   .orderButton {
     height: 58px;
+  }
+
+  .orderFeedbackError,
+  .orderFeedbackSuccess {
+    font-size: 0.82rem;
   }
 }

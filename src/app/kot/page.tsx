@@ -21,6 +21,7 @@ export default function KotPage() {
   const {
     cartItems,
     totalItems,
+    clearCart,
     addItem,
     decreaseItem,
     cookingRequests,
@@ -29,8 +30,12 @@ export default function KotPage() {
   const [editingRequestItemId, setEditingRequestItemId] = useState<string | null>(null);
   const [requestDraft, setRequestDraft] = useState("");
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [branchId, setBranchId] = useState("");
   const [branchName, setBranchName] = useState("VSeyal");
   const [sharedTableNumber, setSharedTableNumber] = useState("");
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [orderMessage, setOrderMessage] = useState("");
+  const [orderError, setOrderError] = useState("");
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -41,6 +46,7 @@ export default function KotPage() {
       }
 
       setHasAccess(true);
+      setBranchId(session.branchId);
       setBranchName(session.branchName || "VSeyal");
     });
 
@@ -73,6 +79,72 @@ export default function KotPage() {
 
     updateCookingRequest(activeEditingRequestItemId, requestDraft);
     closeRequestEditor();
+  };
+  const submitOrder = async () => {
+    const trimmedTableNumber = sharedTableNumber.trim();
+    if (!branchId) {
+      setOrderError("Branch is not ready yet. Open the homepage again.");
+      setOrderMessage("");
+      return;
+    }
+    if (!trimmedTableNumber) {
+      setOrderError("Enter a shared table number before placing the order.");
+      setOrderMessage("");
+      return;
+    }
+    if (cartItems.length === 0) {
+      setOrderError("Add at least one item before placing the order.");
+      setOrderMessage("");
+      return;
+    }
+
+    setIsSubmittingOrder(true);
+    setOrderError("");
+    setOrderMessage("");
+
+    try {
+      const response = await fetch("/api/place-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          branchId,
+          branchName,
+          tableNumber: trimmedTableNumber,
+          items: cartItems.map((item) => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            note: cookingRequests[item.id] ?? "",
+          })),
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        message?: string;
+        invoiceNumber?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.message || "Unable to place the order.");
+      }
+
+      clearCart();
+      setSharedTableNumber("");
+      setOrderMessage(
+        payload.invoiceNumber
+          ? `Order placed successfully. Invoice ${payload.invoiceNumber}.`
+          : `Order placed successfully for table ${trimmedTableNumber}.`,
+      );
+    } catch (error) {
+      setOrderError(
+        error instanceof Error ? error.message : "Unable to place the order.",
+      );
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   if (hasAccess === false) {
@@ -149,52 +221,54 @@ export default function KotPage() {
 
                 return (
                   <div key={item.id} className={styles.itemGroup}>
-                  <article className={styles.itemRow}>
-                    <div className={styles.itemLead}>
-                      <VegIcon isVeg={item.isVeg} />
-                      <div className={styles.itemMeta}>
-                        <h3>{item.name}</h3>
+                    <article className={styles.itemRow}>
+                      <div className={styles.itemLead}>
+                        <VegIcon isVeg={item.isVeg} />
+                        <div className={styles.itemMeta}>
+                          <h3>{item.name}</h3>
+                          {hasSavedNote ? (
+                            <div className={styles.itemSavedNote}>{itemNote}</div>
+                          ) : index === 0 ? (
+                            <div className={styles.itemHintText}>
+                              Tap
+                              <NoteAddIcon className={styles.itemHintInlineIcon} />
+                              Icon to add a cooking note
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className={styles.noteButton}
+                        onClick={() => {
+                          setEditingRequestItemId(item.id);
+                          setRequestDraft(cookingRequests[item.id] ?? "");
+                        }}
+                        aria-label="Cooking requests"
+                      >
                         {hasSavedNote ? (
-                          <div className={styles.itemSavedNote}>{itemNote}</div>
-                        ) : index === 0 ? (
-                          <div className={styles.itemHintText}>
-                            Tap
-                            <NoteAddIcon className={styles.itemHintInlineIcon} />
-                            Icon to add a cooking note
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
+                          <NoteSavedIcon
+                            className={`${styles.noteIcon} ${styles.noteSavedIcon}`}
+                          />
+                        ) : (
+                          <NoteAddIcon className={styles.noteIcon} />
+                        )}
+                      </button>
 
-                    <button
-                      type="button"
-                      className={styles.noteButton}
-                      onClick={() => {
-                        setEditingRequestItemId(item.id);
-                        setRequestDraft(cookingRequests[item.id] ?? "");
-                      }}
-                      aria-label="Cooking requests"
-                    >
-                      {hasSavedNote ? (
-                        <NoteSavedIcon className={`${styles.noteIcon} ${styles.noteSavedIcon}`} />
-                      ) : (
-                        <NoteAddIcon className={styles.noteIcon} />
-                      )}
-                    </button>
-
-                    <div className={styles.itemActions}>
-                      <div className={styles.qtyBox}>
-                        <button type="button" onClick={() => decreaseItem(item.id)}>
-                          −
-                        </button>
-                        <span className={styles.qtyValue}>{item.quantity}</span>
-                        <button type="button" onClick={() => addItem(item)}>
-                          +
-                        </button>
+                      <div className={styles.itemActions}>
+                        <div className={styles.qtyBox}>
+                          <button type="button" onClick={() => decreaseItem(item.id)}>
+                            −
+                          </button>
+                          <span className={styles.qtyValue}>{item.quantity}</span>
+                          <button type="button" onClick={() => addItem(item)}>
+                            +
+                          </button>
+                        </div>
+                        <div className={styles.itemPrice}>₹{item.price * item.quantity}</div>
                       </div>
-                      <div className={styles.itemPrice}>₹{item.price * item.quantity}</div>
-                    </div>
-                  </article>
+                    </article>
                   </div>
                 );
               })
@@ -214,13 +288,24 @@ export default function KotPage() {
         <div className={styles.footerInner}>
           <input
             value={sharedTableNumber}
-            onChange={(event) => setSharedTableNumber(event.target.value)}
+            onChange={(event) => {
+              setSharedTableNumber(event.target.value);
+              if (orderError) setOrderError("");
+              if (orderMessage) setOrderMessage("");
+            }}
             className={styles.sharedTableInput}
             placeholder="Enter shared table number"
           />
-          <button type="button" className={styles.orderButton}>
-            ORDER
+          <button
+            type="button"
+            className={styles.orderButton}
+            onClick={submitOrder}
+            disabled={isSubmittingOrder}
+          >
+            {isSubmittingOrder ? "PLACING..." : "ORDER"}
           </button>
+          {orderError ? <div className={styles.orderFeedbackError}>{orderError}</div> : null}
+          {orderMessage ? <div className={styles.orderFeedbackSuccess}>{orderMessage}</div> : null}
         </div>
       </div>
 
