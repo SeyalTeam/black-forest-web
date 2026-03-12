@@ -2,7 +2,11 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { readBranchSession } from "@/components/branch-session";
+import {
+  clearActiveBillSession,
+  readBranchSession,
+  writeActiveBillSession,
+} from "@/components/branch-session";
 import {
   BackIcon,
   BellIcon,
@@ -27,6 +31,7 @@ export default function BillSummaryPage() {
 
   const [pageData, setPageData] = useState<BillSummaryData | null>(null);
   const [branchName, setBranchName] = useState("VSeyal");
+  const [branchId, setBranchId] = useState("");
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -44,6 +49,7 @@ export default function BillSummaryPage() {
       }
 
       setHasAccess(true);
+      setBranchId(session.branchId);
       if (session.branchName) {
         setBranchName(session.branchName);
       }
@@ -109,6 +115,19 @@ export default function BillSummaryPage() {
     };
   }, [billId]);
 
+  useEffect(() => {
+    if (!branchId || !pageData?.billId) {
+      return;
+    }
+
+    writeActiveBillSession({
+      branchId,
+      billId: pageData.billId,
+      tableNumber: pageData.tableNumber,
+      section: pageData.section,
+    });
+  }, [branchId, pageData]);
+
   const returnToMenu = () => {
     router.push("/");
   };
@@ -144,6 +163,7 @@ export default function BillSummaryPage() {
       }
 
       window.sessionStorage.removeItem(`${BILL_CACHE_KEY_PREFIX}${pageData.billId}`);
+      clearActiveBillSession();
       router.replace("/");
     } catch (error) {
       setBillError(error instanceof Error ? error.message : "Unable to complete bill.");

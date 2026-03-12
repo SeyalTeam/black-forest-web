@@ -3,6 +3,13 @@ export const SESSION_BRANCH_NAME_KEY = "blackforest-order-web-branch-name";
 export const SESSION_TABLE_NUMBER_KEY = "blackforest-order-web-table-number";
 export const SESSION_TABLE_SECTION_KEY = "blackforest-order-web-table-section";
 export const SESSION_TABLE_BRANCH_ID_KEY = "blackforest-order-web-table-branch-id";
+export const SESSION_ACTIVE_BILL_ID_KEY = "blackforest-order-web-active-bill-id";
+export const SESSION_ACTIVE_BILL_BRANCH_ID_KEY =
+  "blackforest-order-web-active-bill-branch-id";
+export const SESSION_ACTIVE_BILL_TABLE_NUMBER_KEY =
+  "blackforest-order-web-active-bill-table-number";
+export const SESSION_ACTIVE_BILL_SECTION_KEY =
+  "blackforest-order-web-active-bill-section";
 
 export type BranchSession = {
   branchId: string;
@@ -11,6 +18,13 @@ export type BranchSession = {
 
 export type TableSession = {
   branchId: string;
+  tableNumber: string;
+  section: string;
+};
+
+export type ActiveBillSession = {
+  branchId: string;
+  billId: string;
   tableNumber: string;
   section: string;
 };
@@ -113,4 +127,84 @@ export function clearTableSession() {
   window.sessionStorage.removeItem(SESSION_TABLE_BRANCH_ID_KEY);
   window.sessionStorage.removeItem(SESSION_TABLE_NUMBER_KEY);
   window.sessionStorage.removeItem(SESSION_TABLE_SECTION_KEY);
+}
+
+export function readActiveBillSession(branchId?: string): ActiveBillSession | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const billId = window.sessionStorage.getItem(SESSION_ACTIVE_BILL_ID_KEY)?.trim() ?? "";
+  const storedBranchId =
+    window.sessionStorage.getItem(SESSION_ACTIVE_BILL_BRANCH_ID_KEY)?.trim() ?? "";
+
+  if (!billId || !storedBranchId) {
+    return null;
+  }
+
+  if (branchId?.trim() && storedBranchId !== branchId.trim()) {
+    return null;
+  }
+
+  return {
+    branchId: storedBranchId,
+    billId,
+    tableNumber:
+      window.sessionStorage.getItem(SESSION_ACTIVE_BILL_TABLE_NUMBER_KEY)?.trim() ?? "",
+    section: window.sessionStorage.getItem(SESSION_ACTIVE_BILL_SECTION_KEY)?.trim() ?? "",
+  };
+}
+
+export function writeActiveBillSession({
+  branchId,
+  billId,
+  tableNumber,
+  section,
+}: {
+  branchId: string;
+  billId: string;
+  tableNumber?: string;
+  section?: string;
+}) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const normalizedBranchId = branchId.trim();
+  const normalizedBillId = billId.trim();
+  if (!normalizedBranchId || !normalizedBillId) {
+    clearActiveBillSession();
+    return;
+  }
+
+  window.sessionStorage.setItem(SESSION_ACTIVE_BILL_BRANCH_ID_KEY, normalizedBranchId);
+  window.sessionStorage.setItem(SESSION_ACTIVE_BILL_ID_KEY, normalizedBillId);
+
+  const normalizedTableNumber = tableNumber?.trim() ?? "";
+  const normalizedSection = section?.trim() ?? "";
+  if (normalizedTableNumber) {
+    window.sessionStorage.setItem(
+      SESSION_ACTIVE_BILL_TABLE_NUMBER_KEY,
+      normalizedTableNumber,
+    );
+  } else {
+    window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_TABLE_NUMBER_KEY);
+  }
+
+  if (normalizedSection) {
+    window.sessionStorage.setItem(SESSION_ACTIVE_BILL_SECTION_KEY, normalizedSection);
+  } else {
+    window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_SECTION_KEY);
+  }
+}
+
+export function clearActiveBillSession() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_BRANCH_ID_KEY);
+  window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_ID_KEY);
+  window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_TABLE_NUMBER_KEY);
+  window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_SECTION_KEY);
 }

@@ -140,6 +140,12 @@
   margin-top: 18px;
 }
 
+.cardDivider {
+  height: 1px;
+  margin: 18px 0 24px;
+  background: #ddd9d4;
+}
+
 .itemGroup {
   display: flex;
   flex-direction: column;
@@ -234,6 +240,72 @@
 .itemPrice {
   color: #1f2430;
   font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.previousItemList {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.previousItemRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.previousItemMeta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.previousItemMeta h3 {
+  color: #1f2430;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.18;
+  text-transform: uppercase;
+}
+
+.statusPill {
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 14px;
+  background: #f8edc7;
+  color: #c99717;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.previousItemActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.readonlyQtyBox {
+  min-width: 86px;
+  height: 46px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  border: 1px solid #d9d2ca;
+  background: #fcfbfa;
+  color: #1f2430;
+  font-size: 1rem;
   font-weight: 900;
 }
 
@@ -833,6 +905,31 @@
 
   .itemPrice {
     font-size: 0.95rem;
+  }
+
+  .cardDivider {
+    margin: 16px 0 20px;
+  }
+
+  .previousItemRow {
+    gap: 10px;
+  }
+
+  .previousItemMeta h3 {
+    font-size: 0.95rem;
+  }
+
+  .statusPill {
+    min-height: 30px;
+    padding: 0 12px;
+    font-size: 0.76rem;
+  }
+
+  .readonlyQtyBox {
+    min-width: 76px;
+    height: 42px;
+    border-radius: 14px;
+    font-size: 0.94rem;
   }
 
   .addMoreButton {

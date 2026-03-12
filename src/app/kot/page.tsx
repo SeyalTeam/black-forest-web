@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { readBranchSession, readTableSession } from "@/components/branch-session";
+import {
+  readActiveBillSession,
+  readBranchSession,
+  readTableSession,
+  writeActiveBillSession,
+} from "@/components/branch-session";
 import {
   BackIcon,
   BagIcon,
@@ -13,9 +18,12 @@ import {
   NoteAddIcon,
   NoteSavedIcon,
   PinIcon,
+  TableIcon,
   VegIcon,
 } from "@/components/menu-icons";
 import { useOrder } from "@/components/order-provider";
+import type { BillSummaryData } from "@/lib/order-types";
+import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import styles from "./kot-shell.module.css";
 
 type CustomerDetailsConfig = {
@@ -52,6 +60,8 @@ const defaultCustomerConfig: CustomerDetailsConfig = {
   autoSubmit: true,
   showHistory: true,
 };
+
+const BILL_CACHE_KEY_PREFIX = "blackforest-order-web-bill:";
 
 function normalizePhone(value: string) {
   return value.replace(/\D/g, "");
@@ -106,6 +116,7 @@ export default function KotPage() {
   const [branchName, setBranchName] = useState("VSeyal");
   const [sharedTableNumber, setSharedTableNumber] = useState("");
   const [preferredSection, setPreferredSection] = useState("");
+  const [previousBillData, setPreviousBillData] = useState<BillSummaryData | null>(null);
   const [customerConfig, setCustomerConfig] =
     useState<CustomerDetailsConfig>(defaultCustomerConfig);
   const [customerName, setCustomerName] = useState("");
@@ -190,6 +201,71 @@ export default function KotPage() {
   }, [branchId]);
 
   useEffect(() => {
+    if (!branchId) {
+      setPreviousBillData(null);
+      return;
+    }
+
+    const activeBill = readActiveBillSession(branchId);
+    if (!activeBill?.billId) {
+      setPreviousBillData(null);
+      return;
+    }
+
+    if (activeBill.tableNumber) {
+      setSharedTableNumber((current) => current.trim() || activeBill.tableNumber);
+    }
+    if (activeBill.section) {
+      setPreferredSection((current) => current.trim() || activeBill.section);
+    }
+
+    let isDisposed = false;
+    const cacheKey = `${BILL_CACHE_KEY_PREFIX}${activeBill.billId}`;
+    const cached = readSessionCache<BillSummaryData>(cacheKey);
+    if (cached) {
+      setPreviousBillData(cached);
+    }
+
+    const loadPreviousBill = async () => {
+      try {
+        const response = await fetch(
+          `/api/bill-summary?billId=${encodeURIComponent(activeBill.billId)}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) {
+          if (!cached && !isDisposed) {
+            setPreviousBillData(null);
+          }
+          return;
+        }
+
+        const payload = (await response.json()) as BillSummaryData;
+        if (isDisposed) {
+          return;
+        }
+
+        setPreviousBillData(payload);
+        writeSessionCache(cacheKey, payload);
+        if (payload.tableNumber) {
+          setSharedTableNumber((current) => current.trim() || payload.tableNumber);
+        }
+        if (payload.section) {
+          setPreferredSection((current) => current.trim() || payload.section);
+        }
+      } catch {
+        if (!cached && !isDisposed) {
+          setPreviousBillData(null);
+        }
+      }
+    };
+
+    void loadPreviousBill();
+    return () => {
+      isDisposed = true;
+    };
+  }, [branchId]);
+
+  useEffect(() => {
     return () => {
       if (lookupDebounceRef.current !== null) {
         window.clearTimeout(lookupDebounceRef.current);
@@ -201,6 +277,20 @@ export default function KotPage() {
   const activeEditingRequestItemId =
     editingRequestItemId && cartItems.some((item) => item.id === editingRequestItemId)
       ? editingRequestItemId
+      : null;
+  const trimmedTableNumber = sharedTableNumber.trim();
+  const tableChipLabel = trimmedTableNumber
+    ? `Table ${trimmedTableNumber}`
+    : previousBillData?.tableNumber
+      ? `Table ${previousBillData.tableNumber}`
+      : "Shared Tables";
+  const sectionChipLabel = preferredSection.trim() || previousBillData?.section || "";
+  const showDetailedTableChips = Boolean(trimmedTableNumber || sectionChipLabel);
+  const matchingPreviousBill =
+    previousBillData &&
+    (!trimmedTableNumber || previousBillData.tableNumber === trimmedTableNumber) &&
+    (!sectionChipLabel || !previousBillData.section || previousBillData.section === sectionChipLabel)
+      ? previousBillData
       : null;
   const normalizedCustomerPhoneDraft = normalizePhone(customerPhoneDraft);
   const hasExistingCustomerDetails =
@@ -341,6 +431,8 @@ export default function KotPage() {
         message?: string;
         invoiceNumber?: string;
         billId?: string;
+        tableNumber?: string;
+        section?: string;
       };
 
       if (!response.ok) {
@@ -349,6 +441,12 @@ export default function KotPage() {
 
       clearCart();
       if (payload.billId) {
+        writeActiveBillSession({
+          branchId,
+          billId: payload.billId,
+          tableNumber: payload.tableNumber || trimmedTableNumber,
+          section: payload.section || preferredSection,
+        });
         router.push(`/bill/${encodeURIComponent(payload.billId)}`);
         return;
       }
@@ -560,10 +658,25 @@ export default function KotPage() {
         </header>
 
         <div className={styles.chipRow}>
-          <div className={styles.chip}>
-            <PinIcon className={styles.chipIconSvg} />
-            Shared Tables
-          </div>
+          {showDetailedTableChips ? (
+            <>
+              <div className={styles.chip}>
+                <TableIcon className={styles.chipIconSvg} />
+                {tableChipLabel}
+              </div>
+              {sectionChipLabel ? (
+                <div className={styles.chip}>
+                  <PinIcon className={styles.chipIconSvg} />
+                  {sectionChipLabel}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className={styles.chip}>
+              <PinIcon className={styles.chipIconSvg} />
+              Shared Tables
+            </div>
+          )}
           <div className={styles.chip}>
             <BagIcon className={styles.chipIconSvg} />
             {summaryLabel}
@@ -639,6 +752,36 @@ export default function KotPage() {
               <div className={styles.emptyState}>No items added yet.</div>
             )}
           </div>
+
+          {matchingPreviousBill?.items.length ? (
+            <>
+              <div className={styles.cardDivider} />
+
+              <div className={styles.titleRow}>
+                <h2>Previous Orders</h2>
+                <div className={styles.titleLine} />
+              </div>
+
+              <div className={styles.previousItemList}>
+                {matchingPreviousBill.items.map((item) => (
+                  <article key={item.id} className={styles.previousItemRow}>
+                    <div className={styles.itemLead}>
+                      <VegIcon isVeg={item.isVeg} />
+                      <div className={styles.previousItemMeta}>
+                        <h3>{item.name}</h3>
+                        <div className={styles.statusPill}>{item.status}</div>
+                      </div>
+                    </div>
+
+                    <div className={styles.previousItemActions}>
+                      <div className={styles.readonlyQtyBox}>{item.quantity}</div>
+                      <div className={styles.itemPrice}>₹{item.subtotal}</div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
+          ) : null}
 
           <button type="button" className={styles.addMoreButton} onClick={returnToMenu}>
             <span>＋</span>
