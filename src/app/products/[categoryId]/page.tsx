@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { readBranchSession } from "@/components/branch-session";
-import { BackIcon, SearchIcon, VegIcon } from "@/components/menu-icons";
+import { BackIcon, ChevronRightIcon, SearchIcon, VegIcon } from "@/components/menu-icons";
 import styles from "@/components/menu.module.css";
 import { productAvatarLabel, useOrder } from "@/components/order-provider";
 import type { Product, ProductsPageData } from "@/lib/order-types";
+import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
+
+const PRODUCTS_CACHE_KEY_PREFIX = "blackforest-order-web-products:";
 
 function buildCardBackground(product: Product) {
   if (!product.imageUrl) {
@@ -29,6 +32,7 @@ function productHref(categoryId: string, categoryName: string, from: string) {
 }
 
 export default function ProductsPage() {
+  const router = useRouter();
   const params = useParams<{ categoryId: string }>();
   const searchParams = useSearchParams();
   const categoryId = decodeURIComponent(params.categoryId);
@@ -67,7 +71,14 @@ export default function ProductsPage() {
     let isDisposed = false;
 
     const loadPageData = async () => {
-      setIsLoading(true);
+      const cacheKey = `${PRODUCTS_CACHE_KEY_PREFIX}${branchId}:${categoryId}`;
+      const cached = readSessionCache<ProductsPageData>(cacheKey);
+      if (cached) {
+        setPageData(cached);
+        setIsLoading(false);
+      } else {
+        setIsLoading(true);
+      }
       setErrorMessage("");
 
       try {
@@ -89,8 +100,10 @@ export default function ProductsPage() {
         const payload = (await response.json()) as ProductsPageData;
         if (isDisposed) return;
         setPageData(payload);
+        writeSessionCache(cacheKey, payload);
       } catch (error) {
         if (isDisposed) return;
+        if (cached) return;
         setErrorMessage(error instanceof Error ? error.message : "Failed to load products");
       } finally {
         if (!isDisposed) {
@@ -120,7 +133,15 @@ export default function ProductsPage() {
     () => cartItems.slice(Math.max(0, cartItems.length - 3)),
     [cartItems],
   );
-  const summaryLabel = totalItems === 1 ? "1 item ready" : `${totalItems} items ready`;
+  const summaryLabel = totalItems === 1 ? "1 item added" : `${totalItems} items added`;
+  const returnToPrevious = () => {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push(backHref);
+  };
 
   if (hasAccess === false) {
     return (
@@ -142,21 +163,26 @@ export default function ProductsPage() {
       <section className={styles.shell}>
         <section className={styles.subPage}>
           <header className={styles.pageHeader}>
-            <Link href={backHref} className={styles.backButton} aria-label="Back">
+            <button
+              type="button"
+              className={styles.backButton}
+              aria-label="Back"
+              onClick={returnToPrevious}
+            >
               <BackIcon className={styles.backIcon} />
-            </Link>
+            </button>
             <label className={styles.headerSearch}>
               <SearchIcon className={styles.inlineIconLarge} />
               <input
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder={`Search in ${(pageData?.categoryName ?? categoryNameFromQuery) || "products"}`}
+                placeholder={`Search in ${((pageData?.categoryName ?? categoryNameFromQuery) || "products").toUpperCase()}`}
               />
             </label>
           </header>
 
           <div className={styles.circleStrip}>
-            <Link href={backHref} className={styles.circleItem}>
+            <button type="button" className={styles.circleItem} onClick={returnToPrevious}>
               <span
                 className={styles.circleThumb}
                 style={{
@@ -167,7 +193,7 @@ export default function ProductsPage() {
                 All
               </span>
               <span className={styles.circleLabel}>All</span>
-            </Link>
+            </button>
             {(pageData?.topCategories ?? []).map((category, index) => (
               <Link
                 key={`${category.id}-${index}`}
@@ -269,6 +295,7 @@ export default function ProductsPage() {
 
           <Link href="/kot" className={styles.floatingCartAction}>
             View Cart
+            <ChevronRightIcon className={styles.cartChevron} />
           </Link>
         </div>
       ) : null}

@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { readBranchSession } from "@/components/branch-session";
 import { BackIcon, SearchIcon } from "@/components/menu-icons";
 import styles from "@/components/menu.module.css";
 import type { CategoriesPageData } from "@/lib/order-types";
+import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
+
+const CATEGORIES_CACHE_KEY_PREFIX = "blackforest-order-web-categories:";
 
 function productHref(categoryId: string, categoryName: string) {
   const query = new URLSearchParams({
@@ -16,13 +20,13 @@ function productHref(categoryId: string, categoryName: string) {
 }
 
 export default function CategoriesPage() {
+  const router = useRouter();
   const [pageData, setPageData] = useState<CategoriesPageData | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
-  const [activeOfferIndex, setActiveOfferIndex] = useState(0);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -47,7 +51,14 @@ export default function CategoriesPage() {
     let isDisposed = false;
 
     const loadPageData = async () => {
-      setIsLoading(true);
+      const cacheKey = `${CATEGORIES_CACHE_KEY_PREFIX}${branchId}`;
+      const cached = readSessionCache<CategoriesPageData>(cacheKey);
+      if (cached) {
+        setPageData(cached);
+        setIsLoading(false);
+      } else {
+        setIsLoading(true);
+      }
       setErrorMessage("");
 
       try {
@@ -61,8 +72,10 @@ export default function CategoriesPage() {
         const payload = (await response.json()) as CategoriesPageData;
         if (isDisposed) return;
         setPageData(payload);
+        writeSessionCache(cacheKey, payload);
       } catch (error) {
         if (isDisposed) return;
+        if (cached) return;
         setErrorMessage(error instanceof Error ? error.message : "Failed to load categories");
       } finally {
         if (!isDisposed) {
@@ -88,19 +101,14 @@ export default function CategoriesPage() {
     );
   }, [pageData?.categories, searchQuery]);
 
-  const offerSlides = pageData?.offerSlides ?? [];
-  const activeOffer =
-    offerSlides.length > 0 ? offerSlides[activeOfferIndex % offerSlides.length] : null;
+  const returnToPrevious = () => {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
 
-  useEffect(() => {
-    if (offerSlides.length <= 1) return;
-    const timer = window.setInterval(() => {
-      setActiveOfferIndex((current) => (current + 1) % offerSlides.length);
-    }, 4000);
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [offerSlides.length]);
+    router.push("/");
+  };
 
   if (hasAccess === false) {
     return (
@@ -122,9 +130,14 @@ export default function CategoriesPage() {
       <section className={styles.shell}>
         <section className={styles.subPage}>
           <header className={styles.pageHeader}>
-            <Link href="/" className={styles.backButton} aria-label="Back to home">
+            <button
+              type="button"
+              className={styles.backButton}
+              aria-label="Back to home"
+              onClick={returnToPrevious}
+            >
               <BackIcon className={styles.backIcon} />
-            </Link>
+            </button>
             <label className={styles.headerSearch}>
               <SearchIcon className={styles.inlineIconLarge} />
               <input
@@ -134,43 +147,6 @@ export default function CategoriesPage() {
               />
             </label>
           </header>
-
-          {!isLoading && activeOffer ? (
-            <section className={styles.compactBanner}>
-              <div
-                className={styles.offerBackdrop}
-                style={
-                  {
-                    "--offer-start": activeOffer.startColor,
-                    "--offer-end": activeOffer.endColor,
-                  } as CSSProperties
-                }
-              />
-              <div className={styles.heroShade} />
-              <div className={styles.compactInner}>
-                <div>
-                  <div className={styles.compactBadge}>{activeOffer.badge}</div>
-                  <div className={styles.compactText}>
-                    <h3>{activeOffer.title}</h3>
-                    <p>{activeOffer.subtitle}</p>
-                  </div>
-                </div>
-
-                <div className={styles.compactMediaWrap}>
-                  {activeOffer.imageUrl ? (
-                    <div
-                      className={styles.compactMedia}
-                      style={{ backgroundImage: `url("${activeOffer.imageUrl}")` }}
-                    />
-                  ) : (
-                    <div className={styles.compactValueVisual}>
-                      {activeOffer.valueText || activeOffer.visualSymbol || "%"}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
-          ) : null}
 
           {isLoading ? <div className={styles.statusCard}>Loading categories...</div> : null}
           {!isLoading && errorMessage ? <div className={styles.statusCard}>{errorMessage}</div> : null}
