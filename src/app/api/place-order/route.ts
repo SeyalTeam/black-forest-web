@@ -30,6 +30,14 @@ function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizePaymentMethod(value: unknown) {
+  const normalized = toTrimmedText(value).toLowerCase();
+  if (normalized === "cash" || normalized === "upi" || normalized === "card") {
+    return normalized;
+  }
+  return "cash";
+}
+
 function getIndiaDayStartIso() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
@@ -196,7 +204,7 @@ export async function POST(request: NextRequest) {
       items: existingItems.concat(billingItems),
       totalAmount: toFiniteNumber(existingBill?.totalAmount) + newTotalAmount,
       customerDetails: normalizeCustomerDetails(existingBill?.customerDetails),
-      paymentMethod: toTrimmedText(existingBill?.paymentMethod) || "Cash",
+      paymentMethod: normalizePaymentMethod(existingBill?.paymentMethod),
       applyCustomerOffer: existingBill?.applyCustomerOffer === true,
       status: toTrimmedText(existingBill?.status) || "pending",
       tableDetails: {
