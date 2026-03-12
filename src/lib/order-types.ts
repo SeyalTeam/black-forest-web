@@ -75,3 +75,23 @@ export type BranchLookupResult = {
   radiusMeters: number | null;
   distanceMeters: number | null;
 };
+
+export type BillSummaryItem = {
+  id: string;
+  name: string;
+  quantity: number;
+  subtotal: number;
+  status: string;
+  isVeg: boolean;
+};
+
+export type BillSummaryData = {
+  billId: string;
+  invoiceNumber: string;
+  branchName: string;
+  tableNumber: string;
+  section: string;
+  totalAmount: number;
+  paymentMethod: string;
+  items: BillSummaryItem[];
+};

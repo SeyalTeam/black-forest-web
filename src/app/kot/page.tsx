@@ -125,6 +125,7 @@ export default function KotPage() {
       const payload = (await response.json()) as {
         message?: string;
         invoiceNumber?: string;
+        billId?: string;
       };
 
       if (!response.ok) {
@@ -133,6 +134,11 @@ export default function KotPage() {
 
       clearCart();
       setSharedTableNumber("");
+      if (payload.billId) {
+        router.push(`/bill/${encodeURIComponent(payload.billId)}`);
+        return;
+      }
+
       setOrderMessage(
         payload.invoiceNumber
           ? `Order placed successfully. Invoice ${payload.invoiceNumber}.`

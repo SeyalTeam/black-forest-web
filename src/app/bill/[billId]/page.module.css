@@ -1,0 +1,416 @@
+.page {
+  min-height: 100vh;
+  padding: 8px 0 236px;
+  background: linear-gradient(180deg, #f7f3ee 0%, #f2ede5 100%);
+}
+
+.shell {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0 6px;
+}
+
+.headerBackButton,
+.headerIconButton {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 20px rgba(83, 68, 50, 0.08);
+  color: #171a21;
+  cursor: pointer;
+}
+
+.headerBackIcon,
+.headerIcon {
+  width: 24px;
+  height: 24px;
+}
+
+.headerTitle {
+  min-width: 0;
+  color: #1d222e;
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.05;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chipRow {
+  display: flex;
+  gap: 14px;
+}
+
+.chip {
+  min-width: 0;
+  flex: 0 0 auto;
+  min-height: 58px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid #ddd6ce;
+  box-shadow: 0 8px 16px rgba(97, 83, 66, 0.06);
+  color: #222733;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.chipIcon {
+  width: 22px;
+  height: 22px;
+  color: #7b818d;
+  flex-shrink: 0;
+}
+
+.orderCard {
+  padding: 22px 18px 24px;
+  border-radius: 34px;
+  background: #ffffff;
+  box-shadow: 0 18px 34px rgba(99, 80, 60, 0.1);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.titleRow h2 {
+  color: #1d222e;
+  font-size: 1.55rem;
+  font-weight: 900;
+}
+
+.titleLine {
+  flex: 1;
+  height: 1px;
+  background: #ddd9d4;
+}
+
+.itemList {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.itemRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.itemLead {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.itemMeta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.itemMeta h3 {
+  color: #1f2430;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.18;
+  text-transform: uppercase;
+}
+
+.statusPill {
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 14px;
+  background: #f8edc7;
+  color: #c99717;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.itemActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.qtyBox {
+  min-width: 86px;
+  height: 46px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  border: 1px solid #d9d2ca;
+  background: #fcfbfa;
+  color: #1f2430;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.itemPrice {
+  color: #1f2430;
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.addMoreButton {
+  width: min(310px, 100%);
+  min-height: 56px;
+  margin: 24px auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 22px;
+  border: 0;
+  background: #27ba3d;
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 800;
+  box-shadow: 0 12px 20px rgba(39, 186, 61, 0.18);
+  cursor: pointer;
+}
+
+.footerDock {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(720px, 100%);
+  padding: 24px 16px calc(18px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), #ffffff);
+  border-radius: 38px 38px 0 0;
+  box-shadow: 0 -14px 26px rgba(66, 51, 37, 0.08);
+}
+
+.footerInner {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.totalText {
+  color: #1f2430;
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.paymentRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.paymentButton,
+.paymentButtonActive {
+  min-height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 18px;
+  border: 1px solid #d8d1c7;
+  background: #ffffff;
+  color: #646b77;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.paymentButtonActive {
+  border-color: #27ba3d;
+  background: rgba(39, 186, 61, 0.08);
+  color: #1b8f31;
+}
+
+.paymentIcon {
+  width: 22px;
+  height: 22px;
+}
+
+.billButton {
+  width: 100%;
+  height: 62px;
+  border-radius: 20px;
+  border: 0;
+  background: #31c53b;
+  color: #ffffff;
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  box-shadow: 0 14px 24px rgba(49, 197, 59, 0.22);
+  cursor: pointer;
+}
+
+.billMessage {
+  color: #1b8f31;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.statusCard {
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.08);
+  color: #425064;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.statusCard strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #243040;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 6px 0 228px;
+  }
+
+  .shell {
+    padding: 0 12px;
+    gap: 16px;
+  }
+
+  .header {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .headerBackButton,
+  .headerIconButton {
+    width: 44px;
+    height: 44px;
+  }
+
+  .headerTitle {
+    font-size: 1.3rem;
+  }
+
+  .chipRow {
+    gap: 10px;
+  }
+
+  .chip {
+    min-height: 54px;
+    padding: 0 14px;
+    font-size: 0.98rem;
+  }
+
+  .orderCard {
+    padding: 18px 16px 20px;
+    border-radius: 28px;
+  }
+
+  .titleRow h2 {
+    font-size: 1.45rem;
+  }
+
+  .itemRow {
+    gap: 10px;
+  }
+
+  .itemLead {
+    gap: 10px;
+  }
+
+  .itemMeta h3 {
+    font-size: 0.95rem;
+  }
+
+  .statusPill {
+    min-height: 30px;
+    padding: 0 12px;
+    font-size: 0.76rem;
+  }
+
+  .qtyBox {
+    min-width: 76px;
+    height: 42px;
+    border-radius: 14px;
+    font-size: 0.94rem;
+  }
+
+  .itemPrice {
+    font-size: 1rem;
+  }
+
+  .addMoreButton {
+    min-height: 54px;
+    font-size: 1rem;
+  }
+
+  .footerDock {
+    width: 100%;
+    padding: 18px 12px calc(16px + env(safe-area-inset-bottom));
+    border-radius: 30px 30px 0 0;
+  }
+
+  .paymentRow {
+    gap: 10px;
+  }
+
+  .paymentButton,
+  .paymentButtonActive {
+    min-height: 58px;
+    font-size: 0.94rem;
+  }
+
+  .billButton {
+    height: 58px;
+  }
+
+  .billMessage {
+    font-size: 0.82rem;
+  }
+}
