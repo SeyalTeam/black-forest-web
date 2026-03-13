@@ -218,6 +218,12 @@ export default function KotPage() {
     if (activeBill.section) {
       setPreferredSection((current) => current.trim() || activeBill.section);
     }
+    if (activeBill.customerName) {
+      setCustomerName((current) => current.trim() || activeBill.customerName);
+    }
+    if (activeBill.customerPhone) {
+      setCustomerPhone((current) => current.trim() || activeBill.customerPhone);
+    }
 
     let isDisposed = false;
     const cacheKey = `${BILL_CACHE_KEY_PREFIX}${activeBill.billId}`;
@@ -446,6 +452,8 @@ export default function KotPage() {
           billId: payload.billId,
           tableNumber: payload.tableNumber || trimmedTableNumber,
           section: payload.section || preferredSection,
+          customerName: customerDetails?.name?.trim() || customerName.trim(),
+          customerPhone: customerDetails?.phoneNumber?.trim() || customerPhone.trim(),
         });
         router.push(`/bill/${encodeURIComponent(payload.billId)}`);
         return;

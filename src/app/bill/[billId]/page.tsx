@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   clearActiveBillSession,
+  readActiveBillSession,
   readBranchSession,
   writeActiveBillSession,
 } from "@/components/branch-session";
@@ -120,11 +121,14 @@ export default function BillSummaryPage() {
       return;
     }
 
+    const existingActiveBill = readActiveBillSession(branchId);
     writeActiveBillSession({
       branchId,
       billId: pageData.billId,
       tableNumber: pageData.tableNumber,
       section: pageData.section,
+      customerName: existingActiveBill?.customerName ?? "",
+      customerPhone: existingActiveBill?.customerPhone ?? "",
     });
   }, [branchId, pageData]);
 

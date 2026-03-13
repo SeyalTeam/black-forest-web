@@ -10,6 +10,10 @@ export const SESSION_ACTIVE_BILL_TABLE_NUMBER_KEY =
   "blackforest-order-web-active-bill-table-number";
 export const SESSION_ACTIVE_BILL_SECTION_KEY =
   "blackforest-order-web-active-bill-section";
+export const SESSION_ACTIVE_BILL_CUSTOMER_NAME_KEY =
+  "blackforest-order-web-active-bill-customer-name";
+export const SESSION_ACTIVE_BILL_CUSTOMER_PHONE_KEY =
+  "blackforest-order-web-active-bill-customer-phone";
 
 export type BranchSession = {
   branchId: string;
@@ -27,6 +31,8 @@ export type ActiveBillSession = {
   billId: string;
   tableNumber: string;
   section: string;
+  customerName: string;
+  customerPhone: string;
 };
 
 export function readBranchSession(): BranchSession | null {
@@ -152,6 +158,10 @@ export function readActiveBillSession(branchId?: string): ActiveBillSession | nu
     tableNumber:
       window.sessionStorage.getItem(SESSION_ACTIVE_BILL_TABLE_NUMBER_KEY)?.trim() ?? "",
     section: window.sessionStorage.getItem(SESSION_ACTIVE_BILL_SECTION_KEY)?.trim() ?? "",
+    customerName:
+      window.sessionStorage.getItem(SESSION_ACTIVE_BILL_CUSTOMER_NAME_KEY)?.trim() ?? "",
+    customerPhone:
+      window.sessionStorage.getItem(SESSION_ACTIVE_BILL_CUSTOMER_PHONE_KEY)?.trim() ?? "",
   };
 }
 
@@ -160,11 +170,15 @@ export function writeActiveBillSession({
   billId,
   tableNumber,
   section,
+  customerName,
+  customerPhone,
 }: {
   branchId: string;
   billId: string;
   tableNumber?: string;
   section?: string;
+  customerName?: string;
+  customerPhone?: string;
 }) {
   if (typeof window === "undefined") {
     return;
@@ -196,6 +210,26 @@ export function writeActiveBillSession({
   } else {
     window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_SECTION_KEY);
   }
+
+  const normalizedCustomerName = customerName?.trim() ?? "";
+  const normalizedCustomerPhone = customerPhone?.trim() ?? "";
+  if (normalizedCustomerName) {
+    window.sessionStorage.setItem(
+      SESSION_ACTIVE_BILL_CUSTOMER_NAME_KEY,
+      normalizedCustomerName,
+    );
+  } else {
+    window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_CUSTOMER_NAME_KEY);
+  }
+
+  if (normalizedCustomerPhone) {
+    window.sessionStorage.setItem(
+      SESSION_ACTIVE_BILL_CUSTOMER_PHONE_KEY,
+      normalizedCustomerPhone,
+    );
+  } else {
+    window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_CUSTOMER_PHONE_KEY);
+  }
 }
 
 export function clearActiveBillSession() {
@@ -207,4 +241,6 @@ export function clearActiveBillSession() {
   window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_ID_KEY);
   window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_TABLE_NUMBER_KEY);
   window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_SECTION_KEY);
+  window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_CUSTOMER_NAME_KEY);
+  window.sessionStorage.removeItem(SESSION_ACTIVE_BILL_CUSTOMER_PHONE_KEY);
 }
