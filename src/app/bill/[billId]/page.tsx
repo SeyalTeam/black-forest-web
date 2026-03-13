@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   clearActiveBillSession,
   readActiveBillSession,
@@ -24,6 +24,7 @@ import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import styles from "./page.module.css";
 
 const BILL_CACHE_KEY_PREFIX = "blackforest-order-web-bill:";
+const BILL_POLL_INTERVAL_MS = 3000;
 
 export default function BillSummaryPage() {
   const router = useRouter();
@@ -39,6 +40,28 @@ export default function BillSummaryPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("cash");
   const [billError, setBillError] = useState("");
   const [isSubmittingBill, setIsSubmittingBill] = useState(false);
+
+  const applyBillSummary = useCallback((summary: BillSummaryData, cacheKey: string) => {
+    setPageData(summary);
+    setBranchName(summary.branchName || "VSeyal");
+    setSelectedPaymentMethod(summary.paymentMethod || "cash");
+    writeSessionCache(cacheKey, summary);
+  }, []);
+
+  const goHomeAfterBillCompletion = useCallback(
+    (resolvedBillId: string) => {
+      if (typeof window !== "undefined") {
+        const normalizedBillId = resolvedBillId.trim();
+        if (normalizedBillId) {
+          window.sessionStorage.removeItem(`${BILL_CACHE_KEY_PREFIX}${normalizedBillId}`);
+        }
+      }
+
+      clearActiveBillSession();
+      router.replace("/");
+    },
+    [router],
+  );
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -72,6 +95,11 @@ export default function BillSummaryPage() {
     const cacheKey = `${BILL_CACHE_KEY_PREFIX}${billId}`;
     const cached = readSessionCache<BillSummaryData>(cacheKey);
     if (cached) {
+      if (cached.status === "completed") {
+        goHomeAfterBillCompletion(cached.billId || billId);
+        return;
+      }
+
       setPageData(cached);
       setBranchName(cached.branchName || "VSeyal");
       setSelectedPaymentMethod(cached.paymentMethod || "cash");
@@ -95,10 +123,12 @@ export default function BillSummaryPage() {
 
         const payload = (await response.json()) as BillSummaryData;
         if (isDisposed) return;
-        setPageData(payload);
-        setBranchName(payload.branchName || "VSeyal");
-        setSelectedPaymentMethod(payload.paymentMethod || "cash");
-        writeSessionCache(cacheKey, payload);
+        if (payload.status === "completed") {
+          goHomeAfterBillCompletion(payload.billId || billId);
+          return;
+        }
+
+        applyBillSummary(payload, cacheKey);
       } catch (error) {
         if (isDisposed) return;
         if (cached) return;
@@ -114,7 +144,52 @@ export default function BillSummaryPage() {
     return () => {
       isDisposed = true;
     };
-  }, [billId]);
+  }, [applyBillSummary, billId, goHomeAfterBillCompletion]);
+
+  useEffect(() => {
+    if (!billId || hasAccess !== true || isSubmittingBill) {
+      return;
+    }
+
+    let isDisposed = false;
+    const cacheKey = `${BILL_CACHE_KEY_PREFIX}${billId}`;
+
+    const refreshBill = async () => {
+      try {
+        const response = await fetch(`/api/bill-summary?billId=${encodeURIComponent(billId)}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as BillSummaryData;
+        if (isDisposed) {
+          return;
+        }
+        if (payload.status === "completed") {
+          goHomeAfterBillCompletion(payload.billId || billId);
+          return;
+        }
+
+        applyBillSummary(payload, cacheKey);
+        setErrorMessage("");
+      } catch {
+        if (isDisposed) {
+          return;
+        }
+      }
+    };
+
+    const interval = window.setInterval(() => {
+      void refreshBill();
+    }, BILL_POLL_INTERVAL_MS);
+
+    return () => {
+      isDisposed = true;
+      window.clearInterval(interval);
+    };
+  }, [applyBillSummary, billId, goHomeAfterBillCompletion, hasAccess, isSubmittingBill]);
 
   useEffect(() => {
     if (!branchId || !pageData?.billId) {
@@ -166,9 +241,7 @@ export default function BillSummaryPage() {
         throw new Error(payload.message || "Unable to complete bill.");
       }
 
-      window.sessionStorage.removeItem(`${BILL_CACHE_KEY_PREFIX}${pageData.billId}`);
-      clearActiveBillSession();
-      router.replace("/");
+      goHomeAfterBillCompletion(pageData.billId);
     } catch (error) {
       setBillError(error instanceof Error ? error.message : "Unable to complete bill.");
     } finally {

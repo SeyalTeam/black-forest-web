@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
       branchName: toTrimmedText(branch?.name) || "VSeyal",
       tableNumber: toTrimmedText(tableDetails?.tableNumber),
       section: toTrimmedText(tableDetails?.section),
+      status: normalizeStatus(payload.status),
       totalAmount: toFiniteNumber(payload.totalAmount),
       paymentMethod: normalizePaymentMethod(payload.paymentMethod),
       items: parseItems(payload.items),

@@ -91,6 +91,7 @@ export type BillSummaryData = {
   branchName: string;
   tableNumber: string;
   section: string;
+  status: string;
   totalAmount: number;
   paymentMethod: string;
   items: BillSummaryItem[];
