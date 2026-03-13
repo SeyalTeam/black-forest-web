@@ -377,6 +377,7 @@
   max-height: min(78vh, 720px);
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .customerModalHeader,
@@ -385,6 +386,16 @@
   grid-template-columns: 42px minmax(0, 1fr) 42px;
   align-items: center;
   gap: 12px;
+}
+
+.historyModalHeader {
+  grid-template-columns: minmax(0, 1fr) 42px;
+}
+
+.historyModalHeader .customerModalClose {
+  position: absolute;
+  top: 22px;
+  right: 20px;
 }
 
 .customerModalTitle,
@@ -964,6 +975,15 @@
   .historyModalHeader {
     grid-template-columns: 36px minmax(0, 1fr) 36px;
     gap: 8px;
+  }
+
+  .historyModalHeader {
+    grid-template-columns: minmax(0, 1fr) 36px;
+  }
+
+  .historyModalHeader .customerModalClose {
+    top: 16px;
+    right: 14px;
   }
 
   .modalIconSpacer,

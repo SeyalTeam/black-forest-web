@@ -984,12 +984,13 @@ export default function KotPage() {
       ) : null}
 
       {isCustomerModalOpen && isHistoryModalOpen ? (
-        <div className={styles.modalBackdrop}>
+        <div className={styles.modalBackdrop} onClick={closeHistoryModal}>
           <div
             className={styles.historyModal}
             role="dialog"
             aria-modal="true"
             aria-labelledby="customer-history-title"
+            onClick={(event) => event.stopPropagation()}
           >
             <div className={styles.historyModalHeader}>
               <h3 id="customer-history-title" className={styles.historyModalTitle}>
