@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 const API_BASE = "https://blackforest.vseyal.com/api";
 const SHARED_TABLE_SECTION = "Shared Tables";
+const ACTIVE_BILL_STATUSES = "pending,ordered,confirmed,prepared,delivered";
 
 type IncomingOrderItem = {
   id?: string;
@@ -149,7 +150,7 @@ async function isLiveTableOccupied({
   token: string;
 }) {
   const lookupParams = new URLSearchParams({
-    "where[status][in]": "pending,ordered,confirmed,prepared,delivered",
+    "where[status][in]": ACTIVE_BILL_STATUSES,
     "where[tableDetails.tableNumber][equals]": tableNumber,
     "where[tableDetails.section][equals]": sectionName,
     "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
@@ -170,6 +171,48 @@ async function isLiveTableOccupied({
 
   const payload = (await response.json()) as BillingLookupResponse;
   return Boolean(payload.docs?.length);
+}
+
+async function findExistingOpenBill({
+  tableNumber,
+  sectionName,
+  branchId,
+  token,
+}: {
+  tableNumber: string;
+  sectionName: string;
+  branchId: string;
+  token: string;
+}) {
+  if (!tableNumber.trim() || !sectionName.trim() || !branchId.trim()) {
+    return null;
+  }
+
+  const lookupParams = new URLSearchParams({
+    "where[status][in]": ACTIVE_BILL_STATUSES,
+    "where[tableDetails.tableNumber][equals]": tableNumber.trim(),
+    "where[tableDetails.section][equals]": sectionName.trim(),
+    "where[branch][equals]": branchId.trim(),
+    "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
+    limit: "1",
+    sort: "-updatedAt",
+    depth: "0",
+  });
+
+  const lookupResponse = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!lookupResponse.ok) {
+    const message = await readResponseMessage(lookupResponse);
+    throw new Error(message);
+  }
+
+  const lookupPayload = (await lookupResponse.json()) as BillingLookupResponse;
+  return lookupPayload.docs?.[0] ?? null;
 }
 
 async function resolveTableTarget({
@@ -385,12 +428,41 @@ export async function POST(request: NextRequest) {
       return Response.json({ message: "At least one valid item is required" }, { status: 400 });
     }
 
-    const resolvedTarget = await resolveTableTarget({
-      tableNumberInput,
-      branchId,
-      token,
-      preferredSection,
-    });
+    let resolvedTarget:
+      | {
+          tableNumber: string;
+          section: string;
+          useShared: boolean;
+        }
+      | undefined;
+    let existingBill: Record<string, unknown> | null = null;
+
+    if (preferredSection) {
+      existingBill = await findExistingOpenBill({
+        tableNumber: tableNumberInput,
+        sectionName: preferredSection,
+        branchId,
+        token,
+      });
+
+      if (existingBill) {
+        resolvedTarget = {
+          tableNumber: tableNumberInput,
+          section: preferredSection,
+          useShared: false,
+        };
+      }
+    }
+
+    if (!resolvedTarget) {
+      resolvedTarget = await resolveTableTarget({
+        tableNumberInput,
+        branchId,
+        token,
+        preferredSection,
+      });
+    }
+
     const tableNumber = resolvedTarget.tableNumber;
     const sectionName = resolvedTarget.section;
 
@@ -407,31 +479,15 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(", ");
 
-    const lookupParams = new URLSearchParams({
-      "where[status][in]": "pending,ordered",
-      "where[tableDetails.tableNumber][equals]": tableNumber,
-      "where[tableDetails.section][equals]": sectionName,
-      "where[branch][equals]": branchId,
-      "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
-      limit: "1",
-      sort: "-updatedAt",
-      depth: "0",
-    });
-
-    const lookupResponse = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    });
-
-    if (!lookupResponse.ok) {
-      const message = await readResponseMessage(lookupResponse);
-      return Response.json({ message }, { status: lookupResponse.status });
+    if (!existingBill) {
+      existingBill = await findExistingOpenBill({
+        tableNumber,
+        sectionName,
+        branchId,
+        token,
+      });
     }
 
-    const lookupPayload = (await lookupResponse.json()) as BillingLookupResponse;
-    const existingBill = lookupPayload.docs?.[0];
     const existingId = toTrimmedText(existingBill?.id);
     const existingItems = Array.isArray(existingBill?.items)
       ? (existingBill.items as Record<string, unknown>[])
