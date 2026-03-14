@@ -461,6 +461,73 @@ async function fetchBranchMeta(branchId: string) {
   }
 }
 
+function extractPrinterIp(value: unknown): string {
+  const direct = readText(value);
+  if (direct && /^\d{1,3}(\.\d{1,3}){3}$/.test(direct)) {
+    return direct;
+  }
+
+  const map = toMap(value);
+  if (!map) return "";
+
+  const candidates = [
+    map.printerIp,
+    map.ipAddress,
+    map.ip,
+    map.host,
+    toMap(map.printer)?.printerIp,
+    toMap(map.printer)?.ipAddress,
+    toMap(map.printer)?.ip,
+    toMap(map.printer)?.host,
+  ];
+
+  for (const candidate of candidates) {
+    const ip = readText(candidate);
+    if (ip && /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+      return ip;
+    }
+  }
+
+  return "";
+}
+
+async function fetchBranchPrinterInfo(branchId: string) {
+  try {
+    const settings = await fetchJson("/globals/branch-geo-settings?depth=1");
+    const locations = toArray(toMap(settings)?.locations);
+
+    for (const rawLocation of locations) {
+      const location = toMap(rawLocation);
+      if (!location) continue;
+      if (extractRefId(location.branch) !== branchId) continue;
+
+      const billingPrinterIp = extractPrinterIp(location.printerIp ?? location.printer);
+      const kotPrinterIps = Array.from(
+        new Set(
+          toArray(location.kotPrinters)
+            .map((printerConfig) => extractPrinterIp(printerConfig))
+            .filter(Boolean),
+        ),
+      );
+
+      return {
+        billingPrinterIp,
+        kotPrinterIps,
+      };
+    }
+  } catch {
+    return {
+      billingPrinterIp: "",
+      kotPrinterIps: [] as string[],
+    };
+  }
+
+  return {
+    billingPrinterIp: "",
+    kotPrinterIps: [] as string[],
+  };
+}
+
 async function fetchProductsByIds(productIds: string[], branchId?: string) {
   if (productIds.length === 0) return new Map<string, Product>();
 
@@ -1073,12 +1140,14 @@ export async function findBranchByCoordinates(
 
 export async function getHomePageData(inputBranchId?: string): Promise<HomePageData> {
   const branchId = readText(inputBranchId) || DEFAULT_BRANCH_ID;
-  const [widgetSettings, offerSettings, branchMeta, billingCategories] = await Promise.all([
-    fetchJson("/globals/widget-settings?depth=1"),
-    fetchJson("/globals/customer-offer-settings?depth=1"),
-    fetchBranchMeta(branchId),
-    fetchBillingCategories(branchId),
-  ]);
+  const [widgetSettings, offerSettings, branchMeta, billingCategories, printerInfo] =
+    await Promise.all([
+      fetchJson("/globals/widget-settings?depth=1"),
+      fetchJson("/globals/customer-offer-settings?depth=1"),
+      fetchBranchMeta(branchId),
+      fetchBillingCategories(branchId),
+      fetchBranchPrinterInfo(branchId),
+    ]);
 
   const [ruleSections, favoriteCategoryPayload, topCategories] = await Promise.all([
     fetchRuleSections(widgetSettings, branchId),
@@ -1090,6 +1159,8 @@ export async function getHomePageData(inputBranchId?: string): Promise<HomePageD
   return {
     branchId,
     branchName: branchMeta.name,
+    billingPrinterIp: printerInfo.billingPrinterIp,
+    kotPrinterIps: printerInfo.kotPrinterIps,
     offerSlides,
     billingCategories,
     topCategories,

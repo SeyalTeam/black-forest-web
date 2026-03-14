@@ -452,6 +452,18 @@ export default function HomePage() {
   const offerSlides = homeData?.offerSlides ?? [];
   const activeOffer =
     offerSlides.length > 0 ? offerSlides[activeOfferIndex % offerSlides.length] : null;
+  const printerBadges = useMemo(() => {
+    if (!homeData) return [];
+
+    const badges: string[] = [];
+    if (homeData.billingPrinterIp) {
+      badges.push(`Bill: ${homeData.billingPrinterIp}`);
+    }
+    if (homeData.kotPrinterIps.length > 0) {
+      badges.push(`KOT: ${homeData.kotPrinterIps.join(", ")}`);
+    }
+    return badges;
+  }, [homeData]);
 
   useEffect(() => {
     if (offerSlides.length <= 1) return;
@@ -484,9 +496,20 @@ export default function HomePage() {
           <div className={styles.heroShade} />
 
           <div className={styles.topBar}>
-            <div className={styles.branchRow}>
-              <PinIcon className={styles.inlineIcon} />
-              <span>{activeBranchName}</span>
+            <div className={styles.branchMeta}>
+              <div className={styles.branchRow}>
+                <PinIcon className={styles.inlineIcon} />
+                <span>{activeBranchName}</span>
+              </div>
+              {printerBadges.length > 0 ? (
+                <div className={styles.branchPrinterRow}>
+                  {printerBadges.map((printerBadge) => (
+                    <span key={printerBadge} className={styles.branchPrinterBadge}>
+                      {printerBadge}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <div className={styles.profileAvatar}>

@@ -43,6 +43,8 @@ export type OfferSlide = {
 export type HomePageData = {
   branchId: string;
   branchName: string;
+  billingPrinterIp: string;
+  kotPrinterIps: string[];
   offerSlides: OfferSlide[];
   billingCategories: CategoryCard[];
   topCategories: CategoryCard[];
