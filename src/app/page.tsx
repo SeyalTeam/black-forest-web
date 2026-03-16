@@ -576,12 +576,17 @@ export default function HomePage() {
 
   const activeBranchName = homeData?.branchName || branchNameOverride || "VSeyal";
   const accessGranted = locationStatus === "resolved" && Boolean(branchId);
+  const previewReady =
+    locationStatus === "locating" &&
+    Boolean(requestedBranchId) &&
+    homeData?.branchId === requestedBranchId;
+  const canRenderMenu = accessGranted || previewReady;
 
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
         <section className={styles.hero}>
-          {accessGranted ? (
+          {canRenderMenu ? (
             <div
               className={styles.offerBackdrop}
               style={
@@ -637,7 +642,7 @@ export default function HomePage() {
           {locationStatus !== "prompt" && locationMessage && !accessGranted ? (
             <div className={styles.locationStatus}>
               <div>
-                <strong>Location</strong>
+                <strong>{previewReady ? "Verifying location" : "Location"}</strong>
                 <span>{locationMessage}</span>
               </div>
               <button
@@ -650,7 +655,7 @@ export default function HomePage() {
             </div>
           ) : null}
 
-          {!accessGranted ? (
+          {!canRenderMenu ? (
             <div className={styles.accessCard}>
               <strong>Website locked</strong>
               <h2>Stay inside the branch radius to continue.</h2>
@@ -722,7 +727,7 @@ export default function HomePage() {
           )}
         </section>
 
-        {accessGranted ? (
+        {canRenderMenu ? (
           <section className={styles.circleStrip}>
             <Link href="/categories" className={styles.circleItem}>
               <span
@@ -758,7 +763,7 @@ export default function HomePage() {
           </section>
         ) : null}
 
-        {accessGranted ? (
+        {canRenderMenu ? (
           <section className={styles.sectionBlock}>
             <div className={styles.sectionTitle}>
               <h2>Fast Movement</h2>
@@ -786,25 +791,25 @@ export default function HomePage() {
           </section>
         ) : null}
 
-        {accessGranted && isLoading ? (
+        {canRenderMenu && isLoading ? (
           <section className={styles.sectionBlock}>
             <div className={styles.statusCard}>Loading homepage data...</div>
           </section>
         ) : null}
 
-        {accessGranted && !isLoading && errorMessage ? (
+        {canRenderMenu && !isLoading && errorMessage ? (
           <section className={styles.sectionBlock}>
             <div className={styles.statusCard}>{errorMessage}</div>
           </section>
         ) : null}
 
-        {accessGranted && !isLoading && !errorMessage && orderedProducts.length === 0 ? (
+        {canRenderMenu && !isLoading && !errorMessage && orderedProducts.length === 0 ? (
           <section className={styles.sectionBlock}>
             <div className={styles.statusCard}>No recommended products available for this branch.</div>
           </section>
         ) : null}
 
-        {accessGranted && !isLoading && !errorMessage && orderedProducts.length > 0 ? (
+        {canRenderMenu && !isLoading && !errorMessage && orderedProducts.length > 0 ? (
           <section className={styles.sectionBlock}>
             <div className={styles.sectionGrid}>
               {orderedProducts.map(({ key, product }) => {
@@ -854,7 +859,7 @@ export default function HomePage() {
           </section>
         ) : null}
 
-        {accessGranted && (homeData?.favoriteCategories ?? []).length > 0 ? (
+        {canRenderMenu && (homeData?.favoriteCategories ?? []).length > 0 ? (
           <section className={styles.favoriteWrap}>
             <div className={styles.favoriteGrid}>
               {(homeData?.favoriteCategories ?? []).map((category) => (
