@@ -132,6 +132,18 @@ function writeCachedHomeData(branchId: string, data: HomePageData) {
   );
 }
 
+async function fetchHomeDataForBranch(targetBranchId: string) {
+  const suffix = targetBranchId ? `?branchId=${encodeURIComponent(targetBranchId)}` : "";
+  const response = await fetch(`/api/home-data${suffix}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to load homepage data");
+  }
+
+  return (await response.json()) as HomePageData;
+}
+
 export default function HomePage() {
   const { cartItems, totalItems, addItem, decreaseItem } = useOrder();
   const [homeData, setHomeData] = useState<HomePageData | null>(null);
@@ -158,6 +170,29 @@ export default function HomePage() {
     [],
   );
 
+  const primeHomeData = useCallback(async (targetBranchId?: string) => {
+    const normalizedBranchId = targetBranchId?.trim() ?? "";
+    if (!normalizedBranchId) {
+      return;
+    }
+
+    const cachedData = readCachedHomeData(normalizedBranchId);
+    if (cachedData) {
+      setHomeData((current) => current ?? cachedData);
+      setIsLoading((current) => (current && !branchId ? false : current));
+      return;
+    }
+
+    try {
+      const payload = await fetchHomeDataForBranch(normalizedBranchId);
+      writeCachedHomeData(normalizedBranchId, payload);
+      setHomeData((current) => current ?? payload);
+      setIsLoading((current) => (current && !branchId ? false : current));
+    } catch {
+      // Keep location flow resilient even if menu prefetch fails.
+    }
+  }, [branchId]);
+
   const requestLocationBranch = useCallback((branchIdFromQuery?: string) => {
     if (typeof window === "undefined" || !("geolocation" in navigator)) {
       blockWebsite(
@@ -167,59 +202,130 @@ export default function HomePage() {
       return;
     }
 
+    const normalizedBranchId = branchIdFromQuery?.trim() ?? "";
+    if (normalizedBranchId) {
+      void primeHomeData(normalizedBranchId);
+    }
+
     setLocationStatus("locating");
     setLocationMessage("Checking whether you are inside the allowed branch radius...");
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const query = new URLSearchParams({
-            lat: String(position.coords.latitude),
-            lng: String(position.coords.longitude),
-          });
-          const targetBranchId = branchIdFromQuery?.trim() ?? "";
-          if (targetBranchId) {
-            query.set("branchId", targetBranchId);
-          }
+    const lookupBranchFromCoordinates = async (
+      latitude: number,
+      longitude: number,
+      targetBranchId?: string,
+    ) => {
+      const query = new URLSearchParams({
+        lat: String(latitude),
+        lng: String(longitude),
+      });
+      const requestedBranch = targetBranchId?.trim() ?? "";
+      if (requestedBranch) {
+        query.set("branchId", requestedBranch);
+      }
 
-          const response = await fetch(
-            `/api/branch-from-location?${query.toString()}`,
-            { cache: "no-store" },
-          );
-          const payload = (await response.json()) as
-            | BranchLookupResult
-            | { message?: string };
+      const response = await fetch(
+        `/api/branch-from-location?${query.toString()}`,
+        { cache: "no-store" },
+      );
+      const payload = (await response.json()) as
+        | BranchLookupResult
+        | { message?: string };
 
-          if (!response.ok) {
-            throw new Error(
-              "message" in payload && payload.message
-                ? payload.message
-                : "Unable to resolve branch from location",
+      if (!response.ok) {
+        throw new Error(
+          "message" in payload && payload.message
+            ? payload.message
+            : "Unable to resolve branch from location",
+        );
+      }
+
+      if (!("matched" in payload)) {
+        throw new Error("Unable to resolve branch from location");
+      }
+
+      return payload;
+    };
+
+    const applyMatchedBranch = (payload: BranchLookupResult) => {
+      writeBranchSession(payload.branchId, payload.branchName);
+      setBranchId(payload.branchId);
+      setBranchNameOverride(payload.branchName);
+      setLocationStatus("resolved");
+      setLocationMessage(
+        `${payload.branchName} branch matched from Branch Geo Settings.`,
+      );
+    };
+
+    const resolveWithPreciseLocation = () => {
+      setLocationMessage("Getting exact location for branch verification...");
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const payload = await lookupBranchFromCoordinates(
+              position.coords.latitude,
+              position.coords.longitude,
+              normalizedBranchId,
+            );
+
+            if (!payload.matched || !payload.branchId) {
+              blockWebsite(
+                "You are outside the allowed branch radius. Website access is blocked.",
+                "blocked",
+              );
+              return;
+            }
+
+            applyMatchedBranch(payload);
+          } catch (error) {
+            blockWebsite(
+              error instanceof Error
+                ? error.message
+                : "Unable to verify your location against Branch Geo Settings.",
+              "blocked",
             );
           }
-
-          if (!("matched" in payload) || !payload.matched || !payload.branchId) {
+        },
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) {
             blockWebsite(
-              "You are outside the allowed branch radius. Website access is blocked.",
-              "blocked",
+              "Location permission was denied. Enable location to open the website.",
+              "denied",
             );
             return;
           }
 
-          writeBranchSession(payload.branchId, payload.branchName);
-          setBranchId(payload.branchId);
-          setBranchNameOverride(payload.branchName);
-          setLocationStatus("resolved");
-          setLocationMessage(
-            `${payload.branchName} branch matched from Branch Geo Settings.`,
-          );
-        } catch (error) {
           blockWebsite(
-            error instanceof Error
-              ? error.message
-              : "Unable to verify your location against Branch Geo Settings.",
+            "Unable to read your current location. Location verification failed.",
             "blocked",
           );
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        },
+      );
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const payload = await lookupBranchFromCoordinates(
+            position.coords.latitude,
+            position.coords.longitude,
+            normalizedBranchId,
+          );
+
+          if (payload.matched && payload.branchId) {
+            applyMatchedBranch(payload);
+            return;
+          }
+
+          resolveWithPreciseLocation();
+        } catch {
+          resolveWithPreciseLocation();
         }
       },
       (error) => {
@@ -231,18 +337,15 @@ export default function HomePage() {
           return;
         }
 
-        blockWebsite(
-          "Unable to read your current location. Location verification failed.",
-          "blocked",
-        );
+        resolveWithPreciseLocation();
       },
       {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000,
+        enableHighAccuracy: false,
+        timeout: 4000,
+        maximumAge: 5 * 60 * 1000,
       },
     );
-  }, [blockWebsite]);
+  }, [blockWebsite, primeHomeData]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -261,6 +364,10 @@ export default function HomePage() {
       setRequestedBranchId(nextBranchId);
       setRequestedTableNumber(nextTableNumber);
       setRequestedTableSection(nextTableSection);
+
+      if (nextBranchId) {
+        void primeHomeData(nextBranchId);
+      }
 
       const cachedSession = readBranchSession();
       if (cachedSession?.branchId && (!nextBranchId || cachedSession.branchId === nextBranchId)) {
@@ -330,7 +437,7 @@ export default function HomePage() {
     return () => {
       isDisposed = true;
     };
-  }, [blockWebsite, requestLocationBranch]);
+  }, [blockWebsite, primeHomeData, requestLocationBranch]);
 
   useEffect(() => {
     if (!branchId || !requestedTableNumber) {
@@ -361,15 +468,7 @@ export default function HomePage() {
       }
 
       try {
-        const suffix = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
-        const response = await fetch(`/api/home-data${suffix}`, {
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          throw new Error("Failed to load homepage data");
-        }
-
-        const payload = (await response.json()) as HomePageData;
+        const payload = await fetchHomeDataForBranch(branchId);
         if (isDisposed) return;
         setHomeData(payload);
         writeCachedHomeData(branchId, payload);
