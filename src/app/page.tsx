@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   clearBranchSession,
@@ -26,6 +27,10 @@ import type {
   Product,
   RuleSection,
 } from "@/lib/order-types";
+import {
+  prefetchCategoriesPageData,
+  prefetchProductsPageData,
+} from "@/lib/session-cache";
 
 type LocationStatus =
   | "checking"
@@ -145,6 +150,7 @@ async function fetchHomeDataForBranch(targetBranchId: string) {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const { cartItems, totalItems, addItem, decreaseItem } = useOrder();
   const [homeData, setHomeData] = useState<HomePageData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -582,6 +588,54 @@ export default function HomePage() {
     homeData?.branchId === requestedBranchId;
   const canRenderMenu = accessGranted || previewReady;
 
+  useEffect(() => {
+    const activeBranchId = branchId || requestedBranchId;
+    if (!activeBranchId || !(homeData?.billingCategories?.length || fastMovementCategories.length)) {
+      return;
+    }
+
+    void prefetchCategoriesPageData(activeBranchId);
+
+    const warmCategories = [
+      ...(homeData?.billingCategories ?? []),
+      ...fastMovementCategories,
+      ...(homeData?.favoriteCategories ?? []),
+    ].slice(0, 6);
+
+    for (const category of warmCategories) {
+      void prefetchProductsPageData({
+        branchId: activeBranchId,
+        categoryId: category.id,
+        categoryName: category.name,
+      });
+    }
+  }, [
+    branchId,
+    requestedBranchId,
+    homeData?.billingCategories,
+    homeData?.favoriteCategories,
+    fastMovementCategories,
+  ]);
+
+  const warmAllCategories = useCallback(() => {
+    const activeBranchId = branchId || requestedBranchId;
+    if (!activeBranchId) return;
+    void router.prefetch("/categories");
+    void prefetchCategoriesPageData(activeBranchId);
+  }, [branchId, requestedBranchId, router]);
+
+  const warmCategory = useCallback((categoryId: string, categoryName: string) => {
+    const activeBranchId = branchId || requestedBranchId;
+    if (!activeBranchId) return;
+    const href = productHref(categoryId, categoryName, "home");
+    void router.prefetch(href);
+    void prefetchProductsPageData({
+      branchId: activeBranchId,
+      categoryId,
+      categoryName,
+    });
+  }, [branchId, requestedBranchId, router]);
+
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
@@ -729,7 +783,13 @@ export default function HomePage() {
 
         {canRenderMenu ? (
           <section className={styles.circleStrip}>
-            <Link href="/categories" className={styles.circleItem}>
+            <Link
+              href="/categories"
+              className={styles.circleItem}
+              onMouseEnter={warmAllCategories}
+              onFocus={warmAllCategories}
+              onTouchStart={warmAllCategories}
+            >
               <span
                 className={styles.circleThumb}
                 style={{
@@ -746,6 +806,9 @@ export default function HomePage() {
                 key={category.id}
                 href={productHref(category.id, category.name, "home")}
                 className={styles.circleItem}
+                onMouseEnter={() => warmCategory(category.id, category.name)}
+                onFocus={() => warmCategory(category.id, category.name)}
+                onTouchStart={() => warmCategory(category.id, category.name)}
               >
                 <span
                   className={styles.circleThumb}
@@ -774,6 +837,9 @@ export default function HomePage() {
                   key={category.id}
                   href={productHref(category.id, category.name, "home")}
                   className={styles.fastCard}
+                  onMouseEnter={() => warmCategory(category.id, category.name)}
+                  onFocus={() => warmCategory(category.id, category.name)}
+                  onTouchStart={() => warmCategory(category.id, category.name)}
                 >
                   <div
                     className={styles.fastCardMedia}
@@ -867,6 +933,9 @@ export default function HomePage() {
                   key={category.id}
                   href={productHref(category.id, category.name, "home")}
                   className={styles.favoriteCard}
+                  onMouseEnter={() => warmCategory(category.id, category.name)}
+                  onFocus={() => warmCategory(category.id, category.name)}
+                  onTouchStart={() => warmCategory(category.id, category.name)}
                 >
                   <div
                     className={styles.favoriteCardMedia}

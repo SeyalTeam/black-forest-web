@@ -745,6 +745,12 @@
   outline: none;
 }
 
+.sharedTableInputLocked {
+  background: #f1ece5;
+  color: #6f675f;
+  cursor: default;
+}
+
 .sharedTableInput::placeholder {
   color: #a7a09a;
 }

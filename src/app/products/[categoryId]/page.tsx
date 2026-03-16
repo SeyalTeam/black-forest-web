@@ -8,9 +8,12 @@ import { BackIcon, ChevronRightIcon, SearchIcon, VegIcon } from "@/components/me
 import styles from "@/components/menu.module.css";
 import { productAvatarLabel, useOrder } from "@/components/order-provider";
 import type { Product, ProductsPageData } from "@/lib/order-types";
-import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
-
-const PRODUCTS_CACHE_KEY_PREFIX = "blackforest-order-web-products:";
+import {
+  getProductsCacheKey,
+  prefetchProductsPageData,
+  readSessionCache,
+  writeSessionCache,
+} from "@/lib/session-cache";
 
 function buildCardBackground(product: Product) {
   if (!product.imageUrl) {
@@ -71,7 +74,7 @@ export default function ProductsPage() {
     let isDisposed = false;
 
     const loadPageData = async () => {
-      const cacheKey = `${PRODUCTS_CACHE_KEY_PREFIX}${branchId}:${categoryId}`;
+      const cacheKey = getProductsCacheKey(branchId, categoryId);
       const cached = readSessionCache<ProductsPageData>(cacheKey);
       if (cached) {
         setPageData(cached);
@@ -118,6 +121,24 @@ export default function ProductsPage() {
     };
   }, [branchId, categoryId, categoryNameFromQuery]);
 
+  useEffect(() => {
+    if (!branchId || !pageData?.topCategories?.length) {
+      return;
+    }
+
+    const warmCategories = pageData.topCategories
+      .filter((category) => category.id !== pageData.categoryId)
+      .slice(0, 6);
+
+    for (const category of warmCategories) {
+      void prefetchProductsPageData({
+        branchId,
+        categoryId: category.id,
+        categoryName: category.name,
+      });
+    }
+  }, [branchId, pageData?.categoryId, pageData?.topCategories]);
+
   const visibleProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
@@ -141,6 +162,17 @@ export default function ProductsPage() {
     }
 
     router.push(backHref);
+  };
+
+  const warmCategory = (nextCategoryId: string, nextCategoryName: string) => {
+    if (!branchId) return;
+    const href = productHref(nextCategoryId, nextCategoryName, from);
+    void router.prefetch(href);
+    void prefetchProductsPageData({
+      branchId,
+      categoryId: nextCategoryId,
+      categoryName: nextCategoryName,
+    });
   };
 
   if (hasAccess === false) {
@@ -201,6 +233,9 @@ export default function ProductsPage() {
                 className={
                   category.id === pageData?.categoryId ? styles.circleItemActive : styles.circleItem
                 }
+                onMouseEnter={() => warmCategory(category.id, category.name)}
+                onFocus={() => warmCategory(category.id, category.name)}
+                onTouchStart={() => warmCategory(category.id, category.name)}
               >
                 <span
                   className={styles.circleThumb}

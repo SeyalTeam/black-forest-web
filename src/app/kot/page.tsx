@@ -115,6 +115,7 @@ export default function KotPage() {
   const [branchId, setBranchId] = useState("");
   const [branchName, setBranchName] = useState("VSeyal");
   const [sharedTableNumber, setSharedTableNumber] = useState("");
+  const [isQrTableLocked, setIsQrTableLocked] = useState(false);
   const [preferredSection, setPreferredSection] = useState("");
   const [previousBillData, setPreviousBillData] = useState<BillSummaryData | null>(null);
   const [customerConfig, setCustomerConfig] =
@@ -151,6 +152,9 @@ export default function KotPage() {
       if (tableSession?.tableNumber) {
         setSharedTableNumber(tableSession.tableNumber);
         setPreferredSection(tableSession.section);
+        setIsQrTableLocked(true);
+      } else {
+        setIsQrTableLocked(false);
       }
     });
 
@@ -455,7 +459,7 @@ export default function KotPage() {
           customerName: customerDetails?.name?.trim() || customerName.trim(),
           customerPhone: customerDetails?.phoneNumber?.trim() || customerPhone.trim(),
         });
-        router.push(`/bill/${encodeURIComponent(payload.billId)}`);
+        router.replace("/");
         return;
       }
 
@@ -802,7 +806,11 @@ export default function KotPage() {
         <div className={styles.footerInner}>
           <input
             value={sharedTableNumber}
+            readOnly={isQrTableLocked}
             onChange={(event) => {
+              if (isQrTableLocked) {
+                return;
+              }
               const nextValue = event.target.value;
               setSharedTableNumber(nextValue);
               const trimmedNextValue = nextValue.trim();
@@ -812,8 +820,11 @@ export default function KotPage() {
               if (orderError) setOrderError("");
               if (orderMessage) setOrderMessage("");
             }}
-            className={styles.sharedTableInput}
+            className={`${styles.sharedTableInput} ${
+              isQrTableLocked ? styles.sharedTableInputLocked : ""
+            }`}
             placeholder="Enter table number"
+            aria-readonly={isQrTableLocked}
           />
           <button
             type="button"

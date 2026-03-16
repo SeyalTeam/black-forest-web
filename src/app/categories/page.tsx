@@ -7,9 +7,12 @@ import { readBranchSession } from "@/components/branch-session";
 import { BackIcon, SearchIcon } from "@/components/menu-icons";
 import styles from "@/components/menu.module.css";
 import type { CategoriesPageData } from "@/lib/order-types";
-import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
-
-const CATEGORIES_CACHE_KEY_PREFIX = "blackforest-order-web-categories:";
+import {
+  getCategoriesCacheKey,
+  prefetchProductsPageData,
+  readSessionCache,
+  writeSessionCache,
+} from "@/lib/session-cache";
 
 function productHref(categoryId: string, categoryName: string) {
   const query = new URLSearchParams({
@@ -51,7 +54,7 @@ export default function CategoriesPage() {
     let isDisposed = false;
 
     const loadPageData = async () => {
-      const cacheKey = `${CATEGORIES_CACHE_KEY_PREFIX}${branchId}`;
+      const cacheKey = getCategoriesCacheKey(branchId);
       const cached = readSessionCache<CategoriesPageData>(cacheKey);
       if (cached) {
         setPageData(cached);
@@ -90,6 +93,21 @@ export default function CategoriesPage() {
     };
   }, [branchId]);
 
+  useEffect(() => {
+    if (!branchId || !pageData?.categories?.length) {
+      return;
+    }
+
+    const warmCategories = pageData.categories.slice(0, 6);
+    for (const category of warmCategories) {
+      void prefetchProductsPageData({
+        branchId,
+        categoryId: category.id,
+        categoryName: category.name,
+      });
+    }
+  }, [branchId, pageData?.categories]);
+
   const visibleCategories = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
@@ -108,6 +126,17 @@ export default function CategoriesPage() {
     }
 
     router.push("/");
+  };
+
+  const warmCategory = (categoryId: string, categoryName: string) => {
+    if (!branchId) return;
+    const href = productHref(categoryId, categoryName);
+    void router.prefetch(href);
+    void prefetchProductsPageData({
+      branchId,
+      categoryId,
+      categoryName,
+    });
   };
 
   if (hasAccess === false) {
@@ -161,6 +190,9 @@ export default function CategoriesPage() {
                   key={category.id}
                   href={productHref(category.id, category.name)}
                   className={styles.categoryCard}
+                  onMouseEnter={() => warmCategory(category.id, category.name)}
+                  onFocus={() => warmCategory(category.id, category.name)}
+                  onTouchStart={() => warmCategory(category.id, category.name)}
                 >
                   <div
                     className={styles.categoryCardMedia}
