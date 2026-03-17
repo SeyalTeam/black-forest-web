@@ -626,7 +626,7 @@ export default function KotPage() {
         <section className={styles.shell}>
           <div className={styles.statusCard}>
             <strong>Access blocked</strong>
-            Open the homepage first and complete branch location verification.
+            Open the homepage first from the branch QR link.
           </div>
         </section>
       </main>
