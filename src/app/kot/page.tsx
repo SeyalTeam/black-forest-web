@@ -799,28 +799,23 @@ export default function KotPage() {
 
       <div className={styles.footerDock}>
         <div className={styles.footerInner}>
-          <input
-            value={sharedTableNumber}
-            readOnly={isQrTableLocked}
-            onChange={(event) => {
-              if (isQrTableLocked) {
-                return;
-              }
-              const nextValue = event.target.value;
-              setSharedTableNumber(nextValue);
-              const trimmedNextValue = nextValue.trim();
-              if (preferredSection && trimmedNextValue !== sharedTableNumber.trim()) {
-                setPreferredSection("");
-              }
-              if (orderError) setOrderError("");
-              if (orderMessage) setOrderMessage("");
-            }}
-            className={`${styles.sharedTableInput} ${
-              isQrTableLocked ? styles.sharedTableInputLocked : ""
-            }`}
-            placeholder="Enter table number"
-            aria-readonly={isQrTableLocked}
-          />
+          {!isQrTableLocked ? (
+            <input
+              value={sharedTableNumber}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setSharedTableNumber(nextValue);
+                const trimmedNextValue = nextValue.trim();
+                if (preferredSection && trimmedNextValue !== sharedTableNumber.trim()) {
+                  setPreferredSection("");
+                }
+                if (orderError) setOrderError("");
+                if (orderMessage) setOrderMessage("");
+              }}
+              className={styles.sharedTableInput}
+              placeholder="Enter table number"
+            />
+          ) : null}
           <button
             type="button"
             className={styles.orderButton}
