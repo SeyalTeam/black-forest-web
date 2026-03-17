@@ -9,6 +9,9 @@ type IncomingOrderItem = {
   name?: string;
   price?: number;
   quantity?: number;
+  category?: string;
+  categoryId?: string;
+  department?: string;
   note?: string;
 };
 
@@ -291,6 +294,9 @@ function buildBillingItem(item: IncomingOrderItem) {
   const name = toTrimmedText(item.name);
   const quantity = Math.max(1, toFiniteNumber(item.quantity) || 1);
   const unitPrice = Math.max(0, toFiniteNumber(item.price));
+  const categoryName = toTrimmedText(item.category);
+  const categoryId = toTrimmedText(item.categoryId);
+  const department = toTrimmedText(item.department) || categoryName;
   const note = toTrimmedText(item.note);
 
   if (!productId || !name) {
@@ -304,6 +310,18 @@ function buildBillingItem(item: IncomingOrderItem) {
     unitPrice,
     subtotal: unitPrice * quantity,
   };
+
+  if (department) {
+    payload.department = department;
+  }
+
+  if (categoryName) {
+    payload.categoryName = categoryName;
+  }
+
+  if (categoryId) {
+    payload.categoryId = categoryId;
+  }
 
   if (note) {
     payload.specialNote = note;
