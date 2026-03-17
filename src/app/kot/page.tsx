@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  clearActiveBillSession,
   readActiveBillSession,
   readBranchSession,
   readTableSession,
@@ -12,6 +13,8 @@ import { BottomNav } from "@/components/bottom-nav";
 import {
   BackIcon,
   BellIcon,
+  CardPaymentIcon,
+  CashIcon,
   CartIcon,
   CloseIcon,
   HistoryIcon,
@@ -19,6 +22,7 @@ import {
   NoteSavedIcon,
   PinIcon,
   TableIcon,
+  UpiIcon,
   VegIcon,
 } from "@/components/menu-icons";
 import { useOrder } from "@/components/order-provider";
@@ -133,6 +137,9 @@ export default function KotPage() {
   const [customerModalError, setCustomerModalError] = useState("");
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [isSubmittingBill, setIsSubmittingBill] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("cash");
+  const [billError, setBillError] = useState("");
   const [orderMessage, setOrderMessage] = useState("");
   const [orderError, setOrderError] = useState("");
   const lookupDebounceRef = useRef<number | null>(null);
@@ -303,6 +310,7 @@ export default function KotPage() {
       : null;
   const hasCurrentItems = cartItems.length > 0;
   const hasPreviousItems = Boolean(matchingPreviousBill?.items.length);
+  const showBillFooter = !hasCurrentItems && hasPreviousItems;
   const normalizedCustomerPhoneDraft = normalizePhone(customerPhoneDraft);
   const hasExistingCustomerDetails =
     customerName.trim().length > 0 || customerPhone.trim().length > 0;
@@ -387,6 +395,21 @@ export default function KotPage() {
   const closeHistoryModal = () => {
     setIsHistoryModalOpen(false);
   };
+
+  const goHomeAfterBillCompletion = useCallback(
+    (resolvedBillId: string) => {
+      if (typeof window !== "undefined") {
+        const normalizedBillId = resolvedBillId.trim();
+        if (normalizedBillId) {
+          window.sessionStorage.removeItem(`${BILL_CACHE_KEY_PREFIX}${normalizedBillId}`);
+        }
+      }
+
+      clearActiveBillSession();
+      router.replace("/");
+    },
+    [router],
+  );
 
   const performOrderSubmission = async (customerDetails?: {
     name?: string;
@@ -509,6 +532,43 @@ export default function KotPage() {
     });
   };
 
+  const completeBill = async () => {
+    if (!matchingPreviousBill?.billId) {
+      setBillError("Bill is not ready yet.");
+      return;
+    }
+
+    setIsSubmittingBill(true);
+    setBillError("");
+
+    try {
+      const response = await fetch("/api/complete-bill", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          billId: matchingPreviousBill.billId,
+          paymentMethod: selectedPaymentMethod,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        message?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.message || "Unable to complete bill.");
+      }
+
+      goHomeAfterBillCompletion(matchingPreviousBill.billId);
+    } catch (error) {
+      setBillError(error instanceof Error ? error.message : "Unable to complete bill.");
+    } finally {
+      setIsSubmittingBill(false);
+    }
+  };
+
   const openCustomerHistory = async () => {
     if (!canOpenCustomerHistory) {
       return;
@@ -620,6 +680,20 @@ export default function KotPage() {
       phoneNumber: customerPhone,
     });
   };
+
+  useEffect(() => {
+    if (!matchingPreviousBill) {
+      return;
+    }
+
+    setSelectedPaymentMethod(matchingPreviousBill.paymentMethod || "cash");
+  }, [matchingPreviousBill]);
+
+  const paymentOptions = [
+    { id: "cash", label: "Cash", icon: CashIcon },
+    { id: "upi", label: "UPI", icon: UpiIcon },
+    { id: "card", label: "Card", icon: CardPaymentIcon },
+  ] as const;
 
   if (hasAccess === false) {
     return (
@@ -799,33 +873,83 @@ export default function KotPage() {
 
       <div className={styles.footerDock}>
         <div className={styles.footerInner}>
-          {!isQrTableLocked ? (
-            <input
-              value={sharedTableNumber}
-              onChange={(event) => {
-                const nextValue = event.target.value;
-                setSharedTableNumber(nextValue);
-                const trimmedNextValue = nextValue.trim();
-                if (preferredSection && trimmedNextValue !== sharedTableNumber.trim()) {
-                  setPreferredSection("");
-                }
-                if (orderError) setOrderError("");
-                if (orderMessage) setOrderMessage("");
-              }}
-              className={styles.sharedTableInput}
-              placeholder="Enter table number"
-            />
-          ) : null}
-          <button
-            type="button"
-            className={styles.orderButton}
-            onClick={submitOrder}
-            disabled={isSubmittingOrder}
-          >
-            {isSubmittingOrder ? "PLACING..." : "ORDER"}
-          </button>
-          {orderError ? <div className={styles.orderFeedbackError}>{orderError}</div> : null}
-          {orderMessage ? <div className={styles.orderFeedbackSuccess}>{orderMessage}</div> : null}
+          {showBillFooter ? (
+            <>
+              <div className={styles.totalText}>
+                Total: ₹{(matchingPreviousBill?.totalAmount ?? 0).toFixed(2)}
+              </div>
+
+              <div className={styles.paymentRow}>
+                {paymentOptions.map((option) => {
+                  const Icon = option.icon;
+                  const isActive = selectedPaymentMethod === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className={isActive ? styles.paymentButtonActive : styles.paymentButton}
+                      onClick={() => {
+                        if (isSubmittingBill) {
+                          return;
+                        }
+                        setSelectedPaymentMethod(option.id);
+                        setBillError("");
+                      }}
+                      disabled={isSubmittingBill}
+                    >
+                      <Icon className={styles.paymentIcon} />
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                className={styles.billButton}
+                onClick={() => {
+                  void completeBill();
+                }}
+                disabled={isSubmittingBill}
+              >
+                {isSubmittingBill ? "BILLING..." : "BILL"}
+              </button>
+
+              {billError ? <div className={styles.billError}>{billError}</div> : null}
+            </>
+          ) : (
+            <>
+              {!isQrTableLocked ? (
+                <input
+                  value={sharedTableNumber}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setSharedTableNumber(nextValue);
+                    const trimmedNextValue = nextValue.trim();
+                    if (preferredSection && trimmedNextValue !== sharedTableNumber.trim()) {
+                      setPreferredSection("");
+                    }
+                    if (orderError) setOrderError("");
+                    if (orderMessage) setOrderMessage("");
+                  }}
+                  className={styles.sharedTableInput}
+                  placeholder="Enter table number"
+                />
+              ) : null}
+              <button
+                type="button"
+                className={styles.orderButton}
+                onClick={() => {
+                  void submitOrder();
+                }}
+                disabled={isSubmittingOrder}
+              >
+                {isSubmittingOrder ? "PLACING..." : "ORDER"}
+              </button>
+              {orderError ? <div className={styles.orderFeedbackError}>{orderError}</div> : null}
+              {orderMessage ? <div className={styles.orderFeedbackSuccess}>{orderMessage}</div> : null}
+            </>
+          )}
         </div>
       </div>
 
