@@ -303,6 +303,8 @@ export default function KotPage() {
     (!sectionChipLabel || !previousBillData.section || previousBillData.section === sectionChipLabel)
       ? previousBillData
       : null;
+  const hasCurrentItems = cartItems.length > 0;
+  const hasPreviousItems = Boolean(matchingPreviousBill?.items.length);
   const normalizedCustomerPhoneDraft = normalizePhone(customerPhoneDraft);
   const hasExistingCustomerDetails =
     customerName.trim().length > 0 || customerPhone.trim().length > 0;
@@ -697,78 +699,84 @@ export default function KotPage() {
         </div>
 
         <section className={styles.orderCard}>
-          <div className={styles.titleRow}>
-            <h2>Current Order</h2>
-            <div className={styles.titleLine} />
-          </div>
-
-          <div className={styles.itemList}>
-            {cartItems.length > 0 ? (
-              cartItems.map((item, index) => {
-                const itemNote = cookingRequests[item.id]?.trim() ?? "";
-                const hasSavedNote = itemNote.length > 0;
-
-                return (
-                  <div key={item.id} className={styles.itemGroup}>
-                    <article className={styles.itemRow}>
-                      <div className={styles.itemLead}>
-                        <VegIcon isVeg={item.isVeg} />
-                        <div className={styles.itemMeta}>
-                          <h3>{item.name}</h3>
-                          {hasSavedNote ? (
-                            <div className={styles.itemSavedNote}>{itemNote}</div>
-                          ) : index === 0 ? (
-                            <div className={styles.itemHintText}>
-                              Tap
-                              <NoteAddIcon className={styles.itemHintInlineIcon} />
-                              Icon to add a cooking note
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        className={styles.noteButton}
-                        onClick={() => {
-                          setEditingRequestItemId(item.id);
-                          setRequestDraft(cookingRequests[item.id] ?? "");
-                        }}
-                        aria-label="Cooking requests"
-                      >
-                        {hasSavedNote ? (
-                          <NoteSavedIcon
-                            className={`${styles.noteIcon} ${styles.noteSavedIcon}`}
-                          />
-                        ) : (
-                          <NoteAddIcon className={styles.noteIcon} />
-                        )}
-                      </button>
-
-                      <div className={styles.itemActions}>
-                        <div className={styles.qtyBox}>
-                          <button type="button" onClick={() => decreaseItem(item.id)}>
-                            −
-                          </button>
-                          <span className={styles.qtyValue}>{item.quantity}</span>
-                          <button type="button" onClick={() => addItem(item)}>
-                            +
-                          </button>
-                        </div>
-                        <div className={styles.itemPrice}>₹{item.price * item.quantity}</div>
-                      </div>
-                    </article>
-                  </div>
-                );
-              })
-            ) : (
-              <div className={styles.emptyState}>No items added yet.</div>
-            )}
-          </div>
-
-          {matchingPreviousBill?.items.length ? (
+          {hasCurrentItems || !hasPreviousItems ? (
             <>
-              <div className={styles.cardDivider} />
+              <div className={styles.titleRow}>
+                <h2>Current Order</h2>
+                <div className={styles.titleLine} />
+              </div>
+
+              <div className={styles.itemList}>
+                {hasCurrentItems ? (
+                  cartItems.map((item, index) => {
+                    const itemNote = cookingRequests[item.id]?.trim() ?? "";
+                    const hasSavedNote = itemNote.length > 0;
+
+                    return (
+                      <div key={item.id} className={styles.itemGroup}>
+                        <article className={styles.itemRow}>
+                          <div className={styles.itemLead}>
+                            <VegIcon isVeg={item.isVeg} />
+                            <div className={styles.itemMeta}>
+                              <h3>{item.name}</h3>
+                              {hasSavedNote ? (
+                                <div className={styles.itemSavedNote}>{itemNote}</div>
+                              ) : index === 0 ? (
+                                <div className={styles.itemHintText}>
+                                  Tap
+                                  <NoteAddIcon className={styles.itemHintInlineIcon} />
+                                  Icon to add a cooking note
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            className={styles.noteButton}
+                            onClick={() => {
+                              setEditingRequestItemId(item.id);
+                              setRequestDraft(cookingRequests[item.id] ?? "");
+                            }}
+                            aria-label="Cooking requests"
+                          >
+                            {hasSavedNote ? (
+                              <NoteSavedIcon
+                                className={`${styles.noteIcon} ${styles.noteSavedIcon}`}
+                              />
+                            ) : (
+                              <NoteAddIcon className={styles.noteIcon} />
+                            )}
+                          </button>
+
+                          <div className={styles.itemActions}>
+                            <div className={styles.qtyBox}>
+                              <button type="button" onClick={() => decreaseItem(item.id)}>
+                                −
+                              </button>
+                              <span className={styles.qtyValue}>{item.quantity}</span>
+                              <button type="button" onClick={() => addItem(item)}>
+                                +
+                              </button>
+                            </div>
+                            <div className={styles.itemPrice}>₹{item.price * item.quantity}</div>
+                          </div>
+                        </article>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className={styles.emptyState}>No items added yet.</div>
+                )}
+              </div>
+            </>
+          ) : null}
+
+          {hasPreviousItems ? (
+            <>
+              {hasCurrentItems || !hasPreviousItems ? (
+                <div className={styles.cardDivider} />
+              ) : null}
 
               <div className={styles.titleRow}>
                 <h2>Previous Orders</h2>
@@ -776,7 +784,7 @@ export default function KotPage() {
               </div>
 
               <div className={styles.previousItemList}>
-                {matchingPreviousBill.items.map((item) => (
+                {matchingPreviousBill!.items.map((item) => (
                   <article key={item.id} className={styles.previousItemRow}>
                     <div className={styles.itemLead}>
                       <VegIcon isVeg={item.isVeg} />
