@@ -8,6 +8,7 @@ import {
   readBranchSession,
   writeActiveBillSession,
 } from "@/components/branch-session";
+import { BottomNav } from "@/components/bottom-nav";
 import {
   BackIcon,
   BellIcon,
@@ -390,6 +391,8 @@ export default function BillSummaryPage() {
           {billError ? <div className={styles.billError}>{billError}</div> : null}
         </div>
       </div>
+
+      <BottomNav />
     </main>
   );
 }

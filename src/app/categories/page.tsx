@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { readBranchSession } from "@/components/branch-session";
+import { BottomNav } from "@/components/bottom-nav";
 import { BackIcon, SearchIcon } from "@/components/menu-icons";
 import styles from "@/components/menu.module.css";
 import type { CategoriesPageData } from "@/lib/order-types";
@@ -209,6 +210,7 @@ export default function CategoriesPage() {
           ) : null}
         </section>
       </section>
+      <BottomNav />
     </main>
   );
 }

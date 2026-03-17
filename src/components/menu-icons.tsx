@@ -62,6 +62,60 @@ export function BackIcon({ className }: IconProps) {
   );
 }
 
+export function HomeNavIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path
+        d="M4.5 10.8 12 4.8l7.5 6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6.8 9.8V19a1 1 0 0 0 1 1h8.4a1 1 0 0 0 1-1V9.8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function MenuNavIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <rect
+        x="4"
+        y="5"
+        width="16"
+        height="3"
+        rx="1.5"
+        fill="currentColor"
+      />
+      <rect
+        x="4"
+        y="10.5"
+        width="16"
+        height="3"
+        rx="1.5"
+        fill="currentColor"
+      />
+      <rect
+        x="4"
+        y="16"
+        width="16"
+        height="3"
+        rx="1.5"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function ChevronRightIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>

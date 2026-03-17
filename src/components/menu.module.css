@@ -1,6 +1,6 @@
 .page {
   min-height: 100vh;
-  padding: 16px 16px 118px;
+  padding: 16px 16px 156px;
   background: linear-gradient(180deg, #f7f2ec 0%, #f2ece3 100%);
 }
 
@@ -872,7 +872,7 @@
 .floatingCartBar {
   position: fixed;
   left: 50%;
-  bottom: 12px;
+  bottom: calc(74px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   width: min(720px, calc(100vw - 28px));
   padding: 14px 16px;
@@ -1006,7 +1006,7 @@
 
 @media (max-width: 680px) {
   .page {
-    padding: 0 0 118px;
+    padding: 0 0 156px;
   }
 
   .shell {
@@ -1082,8 +1082,8 @@
 
   .sectionGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px 10px;
-    padding: 0 4px;
+    gap: 20px 14px;
+    padding: 0 12px;
   }
 
   .subPage {
@@ -1153,10 +1153,10 @@
     width: calc(100vw - 28px);
     padding: 14px 16px;
     border-radius: 22px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
   }
 
   .productArt {
-    aspect-ratio: 0.8;
     border-radius: 24px;
   }
 

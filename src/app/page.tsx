@@ -19,6 +19,7 @@ import {
   VegIcon,
 } from "@/components/menu-icons";
 import styles from "@/components/menu.module.css";
+import { BottomNav } from "@/components/bottom-nav";
 import { productAvatarLabel, useOrder } from "@/components/order-provider";
 import type {
   CategoryCard,
@@ -709,6 +710,8 @@ export default function HomePage() {
           </Link>
         </div>
       ) : null}
+
+      <BottomNav />
     </main>
   );
 }

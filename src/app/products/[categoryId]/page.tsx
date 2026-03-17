@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { readBranchSession } from "@/components/branch-session";
+import { BottomNav } from "@/components/bottom-nav";
 import { BackIcon, ChevronRightIcon, SearchIcon, VegIcon } from "@/components/menu-icons";
 import styles from "@/components/menu.module.css";
 import { productAvatarLabel, useOrder } from "@/components/order-provider";
@@ -334,6 +335,8 @@ export default function ProductsPage() {
           </Link>
         </div>
       ) : null}
+
+      <BottomNav />
     </main>
   );
 }

@@ -8,6 +8,7 @@ import {
   readTableSession,
   writeActiveBillSession,
 } from "@/components/branch-session";
+import { BottomNav } from "@/components/bottom-nav";
 import {
   BackIcon,
   BagIcon,
@@ -838,6 +839,8 @@ export default function KotPage() {
           {orderMessage ? <div className={styles.orderFeedbackSuccess}>{orderMessage}</div> : null}
         </div>
       </div>
+
+      <BottomNav />
 
       {isCustomerModalOpen ? (
         <div className={styles.modalBackdrop}>
