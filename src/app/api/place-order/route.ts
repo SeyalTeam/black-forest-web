@@ -19,6 +19,12 @@ type BillingLookupResponse = {
   docs?: Array<Record<string, unknown>>;
 };
 
+type ProductMetadata = {
+  categoryName: string;
+  categoryId: string;
+  department: string;
+};
+
 export const runtime = "nodejs";
 
 function toFiniteNumber(value: unknown) {
@@ -43,6 +49,22 @@ function toFiniteInteger(value: unknown) {
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function extractRefId(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+
+  const map = readRecord(value);
+  if (!map) return "";
+
+  return (
+    toTrimmedText(map.id) ||
+    toTrimmedText(map._id) ||
+    toTrimmedText(map.value) ||
+    toTrimmedText(map.product) ||
+    toTrimmedText(map.$oid)
+  );
 }
 
 function normalizePaymentMethod(value: unknown) {
@@ -369,6 +391,94 @@ function readRecord(value: unknown) {
     : null;
 }
 
+function parseProductMetadata(product: Record<string, unknown>): ProductMetadata {
+  const categoryNode =
+    product.category ??
+    product.categories ??
+    product.defaultCategory ??
+    product.categoryId;
+  const categoryMap = readRecord(categoryNode);
+  const categoryName =
+    toTrimmedText(categoryMap?.name) ||
+    toTrimmedText(product.categoryName) ||
+    toTrimmedText(product.departmentName) ||
+    toTrimmedText(product.department);
+  const categoryId = extractRefId(categoryNode);
+  const department =
+    toTrimmedText(product.departmentName) ||
+    toTrimmedText(product.department) ||
+    categoryName;
+
+  return {
+    categoryName,
+    categoryId,
+    department,
+  };
+}
+
+async function fetchProductMetadataMap({
+  items,
+  token,
+}: {
+  items: IncomingOrderItem[];
+  token: string;
+}) {
+  const productIds = Array.from(
+    new Set(items.map((item) => toTrimmedText(item.id)).filter(Boolean)),
+  );
+  if (productIds.length === 0) {
+    return new Map<string, ProductMetadata>();
+  }
+
+  const params = new URLSearchParams({
+    "where[id][in]": productIds.join(","),
+    limit: String(productIds.length),
+    depth: "1",
+  });
+
+  const response = await fetch(`${API_BASE}/products?${params.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return new Map<string, ProductMetadata>();
+  }
+
+  const payload = (await response.json()) as {
+    docs?: Array<Record<string, unknown>>;
+  };
+  const metadataById = new Map<string, ProductMetadata>();
+
+  for (const product of payload.docs ?? []) {
+    const productId = extractRefId(product.id ?? product._id ?? product.value);
+    if (!productId) continue;
+    metadataById.set(productId, parseProductMetadata(product));
+  }
+
+  return metadataById;
+}
+
+function mergeIncomingItemMetadata(
+  item: IncomingOrderItem,
+  metadata?: ProductMetadata,
+): IncomingOrderItem {
+  const category = toTrimmedText(item.category) || metadata?.categoryName || "";
+  const categoryId =
+    toTrimmedText(item.categoryId) || metadata?.categoryId || "";
+  const department =
+    toTrimmedText(item.department) || metadata?.department || category;
+
+  return {
+    ...item,
+    category,
+    categoryId,
+    department,
+  };
+}
+
 function billDocId(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
@@ -438,7 +548,18 @@ export async function POST(request: NextRequest) {
       return Response.json({ message: "Table number is required" }, { status: 400 });
     }
 
+    const productMetadataById = await fetchProductMetadataMap({
+      items: incomingItems,
+      token,
+    });
+
     const billingItems = incomingItems
+      .map((item) =>
+        mergeIncomingItemMetadata(
+          item,
+          productMetadataById.get(toTrimmedText(item.id)),
+        ),
+      )
       .map((item) => buildBillingItem(item))
       .filter((item): item is Record<string, unknown> => item !== null);
 
