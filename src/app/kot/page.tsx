@@ -11,7 +11,6 @@ import {
 import { BottomNav } from "@/components/bottom-nav";
 import {
   BackIcon,
-  BagIcon,
   BellIcon,
   CartIcon,
   CloseIcon,
@@ -284,7 +283,6 @@ export default function KotPage() {
     };
   }, []);
 
-  const summaryLabel = totalItems === 1 ? "1 item" : `${totalItems} items`;
   const activeEditingRequestItemId =
     editingRequestItemId && cartItems.some((item) => item.id === editingRequestItemId)
       ? editingRequestItemId
@@ -674,28 +672,16 @@ export default function KotPage() {
 
         <div className={styles.chipRow}>
           {showDetailedTableChips ? (
-            <>
-              <div className={styles.chip}>
-                <TableIcon className={styles.chipIconSvg} />
-                {tableChipLabel}
-              </div>
-              {sectionChipLabel ? (
-                <div className={styles.chip}>
-                  <PinIcon className={styles.chipIconSvg} />
-                  {sectionChipLabel}
-                </div>
-              ) : null}
-            </>
+            <div className={styles.chip}>
+              <TableIcon className={styles.chipIconSvg} />
+              {tableChipLabel}
+            </div>
           ) : (
             <div className={styles.chip}>
               <PinIcon className={styles.chipIconSvg} />
               Shared Tables
             </div>
           )}
-          <div className={styles.chip}>
-            <BagIcon className={styles.chipIconSvg} />
-            {summaryLabel}
-          </div>
         </div>
 
         <section className={styles.orderCard}>
