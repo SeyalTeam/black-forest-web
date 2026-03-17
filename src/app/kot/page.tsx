@@ -15,7 +15,6 @@ import {
   BellIcon,
   CardPaymentIcon,
   CashIcon,
-  CartIcon,
   CloseIcon,
   HistoryIcon,
   NoteAddIcon,
@@ -106,7 +105,6 @@ export default function KotPage() {
   const router = useRouter();
   const {
     cartItems,
-    totalItems,
     clearCart,
     addItem,
     decreaseItem,
@@ -314,6 +312,7 @@ export default function KotPage() {
   const normalizedCustomerPhoneDraft = normalizePhone(customerPhoneDraft);
   const hasExistingCustomerDetails =
     customerName.trim().length > 0 || customerPhone.trim().length > 0;
+  const headerDisplayName = customerName.trim() || "Customer";
   const canOpenCustomerHistory =
     customerConfig.showHistory &&
     normalizedCustomerPhoneDraft.length >= 10 &&
@@ -731,15 +730,11 @@ export default function KotPage() {
             <BackIcon className={styles.headerBackIcon} />
           </button>
 
-          <h1 className={styles.headerTitle}>{branchName}</h1>
+          <h1 className={styles.headerTitle}>{headerDisplayName}</h1>
 
           <div className={styles.headerActions}>
             <button type="button" className={styles.headerIconButton} aria-label="Notifications">
               <BellIcon className={styles.headerIcon} />
-            </button>
-            <button type="button" className={styles.headerIconButton} aria-label="Cart">
-              <CartIcon className={styles.headerIcon} />
-              {totalItems > 0 ? <span className={styles.headerBadge}>{totalItems}</span> : null}
             </button>
           </div>
         </header>
