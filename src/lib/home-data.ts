@@ -1184,7 +1184,12 @@ export async function getHomePageData(inputBranchId?: string): Promise<HomePageD
 export async function getCategoriesPageData(
   inputBranchId?: string,
 ): Promise<CategoriesPageData> {
-  const branchId = readText(inputBranchId) || DEFAULT_BRANCH_ID;
+  return getCachedCategoriesPageData(readText(inputBranchId) || DEFAULT_BRANCH_ID);
+}
+
+async function buildCategoriesPageData(
+  branchId: string,
+): Promise<CategoriesPageData> {
   const [widgetSettings, offerSettings, branchMeta] = await Promise.all([
     fetchJson("/globals/widget-settings?depth=1"),
     fetchJson("/globals/customer-offer-settings?depth=1"),
@@ -1204,6 +1209,12 @@ export async function getCategoriesPageData(
     topCategories,
   };
 }
+
+const getCachedCategoriesPageData = unstable_cache(
+  async (branchId: string) => buildCategoriesPageData(branchId),
+  ["categories-page-data"],
+  { revalidate: 60 },
+);
 
 export async function getProductsPageData(
   categoryId: string,

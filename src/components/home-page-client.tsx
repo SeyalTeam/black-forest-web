@@ -82,6 +82,18 @@ function productHref(categoryId: string, categoryName: string, from: "home" | "c
   return `/products/${encodeURIComponent(categoryId)}?${query.toString()}`;
 }
 
+function categoriesHref(branchId?: string | null) {
+  const normalizedBranchId = branchId?.trim() ?? "";
+  if (!normalizedBranchId) {
+    return "/categories";
+  }
+
+  const query = new URLSearchParams({
+    branchId: normalizedBranchId,
+  });
+  return `/categories?${query.toString()}`;
+}
+
 function readCachedHomeData(branchId: string): HomePageData | null {
   if (typeof window === "undefined") {
     return null;
@@ -369,6 +381,7 @@ export default function HomePageClient({
 
   const activeBranchName = homeData?.branchName || branchNameOverride || "VSeyal";
   const canRenderMenu = Boolean(branchId);
+  const allCategoriesHref = categoriesHref(branchId || requestedBranchId);
 
   useEffect(() => {
     const activeBranchId = branchId || requestedBranchId;
@@ -382,6 +395,7 @@ export default function HomePageClient({
     };
 
     const runPrefetch = () => {
+      void router.prefetch(categoriesHref(activeBranchId));
       void prefetchCategoriesPageData(activeBranchId);
 
       const warmCategories = [
@@ -422,12 +436,13 @@ export default function HomePageClient({
     homeData?.billingCategories,
     homeData?.favoriteCategories,
     fastMovementCategories,
+    router,
   ]);
 
   const warmAllCategories = useCallback(() => {
     const activeBranchId = branchId || requestedBranchId;
+    void router.prefetch(categoriesHref(activeBranchId));
     if (!activeBranchId) return;
-    void router.prefetch("/categories");
     void prefetchCategoriesPageData(activeBranchId);
   }, [branchId, requestedBranchId, router]);
 
@@ -550,7 +565,7 @@ export default function HomePageClient({
         {canRenderMenu ? (
           <section className={styles.circleStrip}>
             <Link
-              href="/categories"
+              href={allCategoriesHref}
               className={styles.circleItem}
               onMouseEnter={warmAllCategories}
               onFocus={warmAllCategories}
