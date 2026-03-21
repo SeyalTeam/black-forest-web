@@ -814,16 +814,31 @@
   cursor: pointer;
 }
 
+.billButtonDisabled {
+  background: #b8b0a5;
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
 .billButton:disabled {
   cursor: wait;
   opacity: 0.8;
 }
 
+.billHint,
 .billError {
-  color: #d44f5d;
   font-size: 0.92rem;
   font-weight: 700;
   text-align: center;
+}
+
+.billHint {
+  color: #6f675f;
+}
+
+.billError {
+  color: #d44f5d;
 }
 
 .orderButton {
@@ -1151,6 +1166,7 @@
 
   .orderFeedbackError,
   .orderFeedbackSuccess,
+  .billHint,
   .billError {
     font-size: 0.82rem;
   }

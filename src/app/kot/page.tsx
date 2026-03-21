@@ -101,6 +101,31 @@ function titleCase(value: string) {
     .join(" ");
 }
 
+function normalizeItemStatus(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function formatBillBlockingItems(items: BillSummaryData["items"]) {
+  if (items.length === 0) {
+    return "";
+  }
+
+  const preview = items
+    .slice(0, 2)
+    .map((item) => `${item.name} (${titleCase(item.status)})`);
+
+  if (items.length === 1) {
+    return preview[0];
+  }
+
+  if (items.length === 2) {
+    return preview.join(" and ");
+  }
+
+  const remainingCount = items.length - 2;
+  return `${preview.join(", ")} and ${remainingCount} more item${remainingCount === 1 ? "" : "s"}`;
+}
+
 export default function KotPage() {
   const router = useRouter();
   const {
@@ -138,6 +163,7 @@ export default function KotPage() {
   const [isSubmittingBill, setIsSubmittingBill] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("cash");
   const [billError, setBillError] = useState("");
+  const [showBillDisabledReason, setShowBillDisabledReason] = useState(false);
   const [orderMessage, setOrderMessage] = useState("");
   const [orderError, setOrderError] = useState("");
   const lookupDebounceRef = useRef<number | null>(null);
@@ -309,6 +335,21 @@ export default function KotPage() {
   const hasCurrentItems = cartItems.length > 0;
   const hasPreviousItems = Boolean(matchingPreviousBill?.items.length);
   const showBillFooter = !hasCurrentItems && hasPreviousItems;
+  const previousBillItems = matchingPreviousBill?.items ?? [];
+  const undeliveredPreviousItems = previousBillItems.filter(
+    (item) => normalizeItemStatus(item.status) !== "delivered",
+  );
+  const canCompleteBill =
+    Boolean(matchingPreviousBill?.billId) &&
+    previousBillItems.length > 0 &&
+    undeliveredPreviousItems.length === 0;
+  const billDisabledReason = !matchingPreviousBill?.billId
+    ? "Bill is not ready yet."
+    : undeliveredPreviousItems.length > 0
+      ? `Bill will be enabled only after all items are delivered. Waiting on ${formatBillBlockingItems(
+          undeliveredPreviousItems,
+        )}.`
+      : "";
   const normalizedCustomerPhoneDraft = normalizePhone(customerPhoneDraft);
   const hasExistingCustomerDetails =
     customerName.trim().length > 0 || customerPhone.trim().length > 0;
@@ -691,6 +732,12 @@ export default function KotPage() {
     setSelectedPaymentMethod(matchingPreviousBill.paymentMethod || "cash");
   }, [matchingPreviousBill]);
 
+  useEffect(() => {
+    if (canCompleteBill || !showBillFooter) {
+      setShowBillDisabledReason(false);
+    }
+  }, [canCompleteBill, showBillFooter]);
+
   const paymentOptions = [
     { id: "cash", label: "Cash", icon: CashIcon },
     { id: "upi", label: "UPI", icon: UpiIcon },
@@ -848,7 +895,7 @@ export default function KotPage() {
                       <VegIcon isVeg={item.isVeg} />
                       <div className={styles.previousItemMeta}>
                         <h3>{item.name}</h3>
-                        <div className={styles.statusPill}>{item.status}</div>
+                        <div className={styles.statusPill}>{titleCase(item.status)}</div>
                       </div>
                     </div>
 
@@ -904,15 +951,26 @@ export default function KotPage() {
 
               <button
                 type="button"
-                className={styles.billButton}
+                className={`${styles.billButton} ${!canCompleteBill ? styles.billButtonDisabled : ""}`}
                 onClick={() => {
+                  if (!canCompleteBill) {
+                    setShowBillDisabledReason(true);
+                    setBillError("");
+                    return;
+                  }
+
+                  setShowBillDisabledReason(false);
                   void completeBill();
                 }}
                 disabled={isSubmittingBill}
+                aria-disabled={isSubmittingBill || !canCompleteBill}
               >
                 {isSubmittingBill ? "BILLING..." : "BILL"}
               </button>
 
+              {showBillDisabledReason && billDisabledReason ? (
+                <div className={styles.billHint}>{billDisabledReason}</div>
+              ) : null}
               {billError ? <div className={styles.billError}>{billError}</div> : null}
             </>
           ) : (
