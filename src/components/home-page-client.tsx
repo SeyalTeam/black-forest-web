@@ -1,0 +1,752 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  clearBranchSession,
+  clearTableSession,
+  readBranchSession,
+  writeTableSession,
+  writeBranchSession,
+} from "@/components/branch-session";
+import {
+  ChevronRightIcon,
+  MicIcon,
+  PinIcon,
+  ProfileIcon,
+  SearchIcon,
+  VegIcon,
+} from "@/components/menu-icons";
+import styles from "@/components/menu.module.css";
+import { BottomNav } from "@/components/bottom-nav";
+import { productAvatarLabel, useOrder } from "@/components/order-provider";
+import type {
+  CategoryCard,
+  HomePageData,
+  Product,
+  RuleSection,
+} from "@/lib/order-types";
+import {
+  prefetchCategoriesPageData,
+  prefetchProductsPageData,
+} from "@/lib/session-cache";
+
+const HOME_CACHE_KEY_PREFIX = "blackforest-order-web-home-data:";
+const HOME_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function extractFastMovementCategories(sections: RuleSection[]) {
+  const orderedCategories: CategoryCard[] = [];
+  const counts = new Map<string, number>();
+
+  for (const section of sections) {
+    for (const product of section.products) {
+      const key = product.categoryId || product.category;
+      if (!key || !product.category) continue;
+
+      if (!counts.has(key)) {
+        orderedCategories.push({
+          id: key,
+          name: product.category,
+          imageUrl: product.categoryImageUrl || product.imageUrl,
+          count: 0,
+        });
+      }
+
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+
+  return orderedCategories.map((category) => ({
+    ...category,
+    count: counts.get(category.id) ?? 0,
+  }));
+}
+
+function buildCardBackground(product: Product) {
+  if (!product.imageUrl) {
+    return { backgroundImage: product.accent };
+  }
+
+  const safeImageUrl = encodeURI(product.imageUrl);
+  return {
+    backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.16)), url("${safeImageUrl}")`,
+  };
+}
+
+function productHref(categoryId: string, categoryName: string, from: "home" | "categories") {
+  const query = new URLSearchParams({
+    name: categoryName,
+    from,
+  });
+  return `/products/${encodeURIComponent(categoryId)}?${query.toString()}`;
+}
+
+function readCachedHomeData(branchId: string): HomePageData | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = window.sessionStorage.getItem(`${HOME_CACHE_KEY_PREFIX}${branchId}`);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      savedAt?: number;
+      data?: HomePageData;
+    };
+    if (
+      !parsed.data ||
+      !parsed.savedAt ||
+      Date.now() - parsed.savedAt > HOME_CACHE_TTL_MS
+    ) {
+      window.sessionStorage.removeItem(`${HOME_CACHE_KEY_PREFIX}${branchId}`);
+      return null;
+    }
+
+    return parsed.data;
+  } catch {
+    window.sessionStorage.removeItem(`${HOME_CACHE_KEY_PREFIX}${branchId}`);
+    return null;
+  }
+}
+
+function writeCachedHomeData(branchId: string, data: HomePageData) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.setItem(
+    `${HOME_CACHE_KEY_PREFIX}${branchId}`,
+    JSON.stringify({
+      savedAt: Date.now(),
+      data,
+    }),
+  );
+}
+
+async function fetchHomeDataForBranch(targetBranchId: string) {
+  const suffix = targetBranchId ? `?branchId=${encodeURIComponent(targetBranchId)}` : "";
+  const response = await fetch(`/api/home-data${suffix}`);
+  if (!response.ok) {
+    throw new Error("Failed to load homepage data");
+  }
+
+  return (await response.json()) as HomePageData;
+}
+
+type HomePageClientProps = {
+  initialHomeData: HomePageData | null;
+  initialBranchId: string | null;
+  initialBranchName: string;
+  initialRequestedBranchId: string;
+  initialRequestedTableNumber: string;
+  initialRequestedTableSection: string;
+};
+
+export default function HomePageClient({
+  initialHomeData,
+  initialBranchId,
+  initialBranchName,
+  initialRequestedBranchId,
+  initialRequestedTableNumber,
+  initialRequestedTableSection,
+}: HomePageClientProps) {
+  const router = useRouter();
+  const { cartItems, totalItems, addItem, decreaseItem } = useOrder();
+  const [homeData, setHomeData] = useState<HomePageData | null>(initialHomeData);
+  const [isLoading, setIsLoading] = useState(Boolean(initialBranchId && !initialHomeData));
+  const [errorMessage, setErrorMessage] = useState("");
+  const [branchId, setBranchId] = useState<string | null>(initialBranchId);
+  const [branchNameOverride, setBranchNameOverride] = useState(initialBranchName);
+  const [requestedBranchId, setRequestedBranchId] = useState(initialRequestedBranchId);
+  const [requestedTableNumber, setRequestedTableNumber] = useState(initialRequestedTableNumber);
+  const [requestedTableSection, setRequestedTableSection] = useState(
+    initialRequestedTableSection,
+  );
+  const [activeOfferIndex, setActiveOfferIndex] = useState(0);
+
+  useEffect(() => {
+    let isDisposed = false;
+
+    const initializeBranch = () => {
+      const nextBranchId = initialRequestedBranchId.trim();
+      const nextTableNumber = initialRequestedTableNumber.trim();
+      const nextTableSection = initialRequestedTableSection.trim();
+      if (isDisposed) return;
+
+      setRequestedBranchId(nextBranchId);
+      setRequestedTableNumber(nextTableNumber);
+      setRequestedTableSection(nextTableSection);
+
+      const cachedSession = readBranchSession();
+
+      if (cachedSession?.branchId && nextBranchId && cachedSession.branchId !== nextBranchId) {
+        clearBranchSession();
+        clearTableSession();
+      }
+
+      const resolvedBranchId = nextBranchId || initialBranchId?.trim() || cachedSession?.branchId || "";
+      if (!resolvedBranchId) {
+        setHomeData(null);
+        setBranchId(null);
+        setBranchNameOverride("");
+        setIsLoading(false);
+        return;
+      }
+
+      const restoredBranchName =
+        (cachedSession?.branchId === resolvedBranchId ? cachedSession.branchName : "") ||
+        initialHomeData?.branchName ||
+        initialBranchName;
+
+      setBranchId(resolvedBranchId);
+      setBranchNameOverride(restoredBranchName);
+      writeBranchSession(resolvedBranchId, initialHomeData?.branchName || restoredBranchName);
+    };
+
+    initializeBranch();
+    return () => {
+      isDisposed = true;
+    };
+  }, [
+    initialBranchId,
+    initialBranchName,
+    initialHomeData,
+    initialRequestedBranchId,
+    initialRequestedTableNumber,
+    initialRequestedTableSection,
+  ]);
+
+  useEffect(() => {
+    if (!branchId || !requestedTableNumber) {
+      return;
+    }
+
+    writeTableSession({
+      branchId,
+      tableNumber: requestedTableNumber,
+      section: requestedTableSection,
+    });
+  }, [branchId, requestedTableNumber, requestedTableSection]);
+
+  useEffect(() => {
+    if (branchId === null) {
+      setIsLoading(false);
+      return;
+    }
+
+    let isDisposed = false;
+
+    const loadHomeData = async () => {
+      setErrorMessage("");
+      const cachedData = readCachedHomeData(branchId);
+      const hasInitialData = homeData?.branchId === branchId;
+
+      if (cachedData && !isDisposed) {
+        setHomeData((current) => (current?.branchId === branchId ? current : cachedData));
+        setIsLoading(false);
+        writeBranchSession(branchId, cachedData.branchName || "");
+        return;
+      }
+
+      if (hasInitialData && homeData) {
+        writeCachedHomeData(branchId, homeData);
+        writeBranchSession(branchId, homeData.branchName || "");
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+
+      try {
+        const payload = await fetchHomeDataForBranch(branchId);
+        if (isDisposed) return;
+        setHomeData(payload);
+        writeBranchSession(branchId, payload.branchName || "");
+        writeCachedHomeData(branchId, payload);
+      } catch (error) {
+        if (isDisposed) return;
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to load homepage data",
+        );
+      } finally {
+        if (!isDisposed) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadHomeData();
+    return () => {
+      isDisposed = true;
+    };
+  }, [branchId, homeData]);
+
+  const summaryLabel = totalItems === 1 ? "1 item added" : `${totalItems} items added`;
+  const previewItems = useMemo(
+    () => cartItems.slice(Math.max(0, cartItems.length - 3)),
+    [cartItems],
+  );
+  const orderedSections = useMemo(
+    () => homeData?.ruleSections ?? [],
+    [homeData?.ruleSections],
+  );
+  const orderedProducts = useMemo(
+    () =>
+      orderedSections.flatMap((section, sectionIndex) =>
+        section.products.map((product, productIndex) => ({
+          key: `${sectionIndex}-${productIndex}-${product.id}`,
+          product,
+        })),
+      ),
+    [orderedSections],
+  );
+  const fastMovementCategories = useMemo(
+    () => extractFastMovementCategories(orderedSections),
+    [orderedSections],
+  );
+
+  const categoryImages = useMemo(() => {
+    const map: Record<string, string> = {};
+
+    const addImage = (name: string, imageUrl?: string | null) => {
+      if (name && imageUrl && !map[name]) {
+        map[name] = imageUrl;
+      }
+    };
+
+    for (const category of homeData?.billingCategories ?? []) {
+      addImage(category.name, category.imageUrl);
+    }
+    for (const category of homeData?.favoriteCategories ?? []) {
+      addImage(category.name, category.imageUrl);
+    }
+    for (const category of fastMovementCategories) {
+      addImage(category.name, category.imageUrl);
+    }
+    for (const section of orderedSections) {
+      for (const product of section.products) {
+        addImage(product.category, product.categoryImageUrl || product.imageUrl);
+      }
+    }
+
+    return map;
+  }, [
+    fastMovementCategories,
+    homeData?.billingCategories,
+    homeData?.favoriteCategories,
+    orderedSections,
+  ]);
+
+  const offerSlides = homeData?.offerSlides ?? [];
+  const activeOffer =
+    offerSlides.length > 0 ? offerSlides[activeOfferIndex % offerSlides.length] : null;
+  const printerBadges = useMemo(() => {
+    if (!homeData) return [];
+
+    const badges: string[] = [];
+    if (homeData.billingPrinterIp) {
+      badges.push(`Bill: ${homeData.billingPrinterIp}`);
+    }
+    if (homeData.kotPrinterIps.length > 0) {
+      badges.push(`KOT: ${homeData.kotPrinterIps.join(", ")}`);
+    }
+    return badges;
+  }, [homeData]);
+
+  useEffect(() => {
+    if (offerSlides.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveOfferIndex((current) => (current + 1) % offerSlides.length);
+    }, 4000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [offerSlides.length]);
+
+  const activeBranchName = homeData?.branchName || branchNameOverride || "VSeyal";
+  const canRenderMenu = Boolean(branchId);
+
+  useEffect(() => {
+    const activeBranchId = branchId || requestedBranchId;
+    if (!activeBranchId || !(homeData?.billingCategories?.length || fastMovementCategories.length)) {
+      return;
+    }
+
+    const browserWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const runPrefetch = () => {
+      void prefetchCategoriesPageData(activeBranchId);
+
+      const warmCategories = [
+        ...(homeData?.billingCategories ?? []),
+        ...fastMovementCategories,
+        ...(homeData?.favoriteCategories ?? []),
+      ].slice(0, 4);
+
+      for (const category of warmCategories) {
+        void prefetchProductsPageData({
+          branchId: activeBranchId,
+          categoryId: category.id,
+          categoryName: category.name,
+        });
+      }
+    };
+
+    let idleHandle: number | null = null;
+    let timeoutHandle: number | null = null;
+
+    if (browserWindow.requestIdleCallback) {
+      idleHandle = browserWindow.requestIdleCallback(runPrefetch, { timeout: 1500 });
+    } else {
+      timeoutHandle = window.setTimeout(runPrefetch, 1200);
+    }
+
+    return () => {
+      if (idleHandle !== null) {
+        browserWindow.cancelIdleCallback?.(idleHandle);
+      }
+      if (timeoutHandle !== null) {
+        window.clearTimeout(timeoutHandle);
+      }
+    };
+  }, [
+    branchId,
+    requestedBranchId,
+    homeData?.billingCategories,
+    homeData?.favoriteCategories,
+    fastMovementCategories,
+  ]);
+
+  const warmAllCategories = useCallback(() => {
+    const activeBranchId = branchId || requestedBranchId;
+    if (!activeBranchId) return;
+    void router.prefetch("/categories");
+    void prefetchCategoriesPageData(activeBranchId);
+  }, [branchId, requestedBranchId, router]);
+
+  const warmCategory = useCallback((categoryId: string, categoryName: string) => {
+    const activeBranchId = branchId || requestedBranchId;
+    if (!activeBranchId) return;
+    const href = productHref(categoryId, categoryName, "home");
+    void router.prefetch(href);
+    void prefetchProductsPageData({
+      branchId: activeBranchId,
+      categoryId,
+      categoryName,
+    });
+  }, [branchId, requestedBranchId, router]);
+
+  return (
+    <main className={styles.page}>
+      <section className={styles.shell}>
+        <section className={styles.hero}>
+          {canRenderMenu ? (
+            <div
+              className={styles.offerBackdrop}
+              style={
+                {
+                  "--offer-start": activeOffer?.startColor ?? "#17b78e",
+                  "--offer-end": activeOffer?.endColor ?? "#0a8d67",
+                } as CSSProperties
+              }
+            />
+          ) : null}
+          <div className={styles.heroShade} />
+
+          <div className={styles.topBar}>
+            <div className={styles.branchMeta}>
+              <div className={styles.branchRow}>
+                <PinIcon className={styles.inlineIcon} />
+                <span>{activeBranchName}</span>
+              </div>
+              {printerBadges.length > 0 ? (
+                <div className={styles.branchPrinterRow}>
+                  {printerBadges.map((printerBadge) => (
+                    <span key={printerBadge} className={styles.branchPrinterBadge}>
+                      {printerBadge}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className={styles.profileAvatar}>
+              <ProfileIcon className={styles.profileIcon} />
+            </div>
+          </div>
+
+          {!canRenderMenu ? (
+            <div className={styles.accessCard}>
+              <strong>Branch link required</strong>
+              <h2>Open the website from a branch QR code.</h2>
+              <p>
+                This temporary flow opens directly from the QR link using the branch id in the
+                URL.
+              </p>
+            </div>
+          ) : (
+            <>
+              <button type="button" className={styles.heroSearch}>
+                <SearchIcon className={styles.inlineIconLarge} />
+                <span>Search for &quot;Pizza&quot;</span>
+                <MicIcon className={styles.inlineIconLarge} />
+              </button>
+
+              {activeOffer ? (
+                <div className={styles.heroContent}>
+                  <div>
+                    <div className={styles.offerBadge}>{activeOffer.badge}</div>
+                    <div className={styles.offerText}>
+                      <h2>{activeOffer.title}</h2>
+                      <p>{activeOffer.subtitle}</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.offerMediaWrap}>
+                    {activeOffer.imageUrl ? (
+                      <div
+                        className={styles.offerMedia}
+                        style={{ backgroundImage: `url("${activeOffer.imageUrl}")` }}
+                      />
+                    ) : (
+                      <div className={styles.offerValueVisual}>
+                        {activeOffer.valueText || activeOffer.visualSymbol || "%"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.heroSpacer} />
+              )}
+
+              {offerSlides.length > 1 ? (
+                <div className={styles.offerDots}>
+                  {offerSlides.map((offer, index) => (
+                    <button
+                      key={`${offer.badge}-${offer.title}-${index}`}
+                      type="button"
+                      className={
+                        index === activeOfferIndex % offerSlides.length
+                          ? styles.offerDotActive
+                          : styles.offerDot
+                      }
+                      onClick={() => setActiveOfferIndex(index)}
+                      aria-label={`Show offer ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </>
+          )}
+        </section>
+
+        {canRenderMenu ? (
+          <section className={styles.circleStrip}>
+            <Link
+              href="/categories"
+              className={styles.circleItem}
+              onMouseEnter={warmAllCategories}
+              onFocus={warmAllCategories}
+              onTouchStart={warmAllCategories}
+            >
+              <span
+                className={styles.circleThumb}
+                style={{
+                  backgroundImage:
+                    "linear-gradient(135deg, rgba(61, 104, 182, 0.18), rgba(75, 124, 192, 0.18))",
+                }}
+              >
+                All
+              </span>
+              <span className={styles.circleLabel}>All</span>
+            </Link>
+            {(homeData?.billingCategories ?? []).map((category) => (
+              <Link
+                key={category.id}
+                href={productHref(category.id, category.name, "home")}
+                className={styles.circleItem}
+                onMouseEnter={() => warmCategory(category.id, category.name)}
+                onFocus={() => warmCategory(category.id, category.name)}
+                onTouchStart={() => warmCategory(category.id, category.name)}
+              >
+                <span
+                  className={styles.circleThumb}
+                  style={{
+                    backgroundImage: categoryImages[category.name]
+                      ? `linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.16)), url("${categoryImages[category.name]}")`
+                      : undefined,
+                  }}
+                >
+                  {!categoryImages[category.name] ? productAvatarLabel(category.name) : ""}
+                </span>
+                <span className={styles.circleLabel}>{category.name}</span>
+              </Link>
+            ))}
+          </section>
+        ) : null}
+
+        {canRenderMenu ? (
+          <section className={styles.sectionBlock}>
+            <div className={styles.sectionTitle}>
+              <h2>Fast Movement</h2>
+            </div>
+            <div className={styles.fastGrid}>
+              {fastMovementCategories.map((category) => (
+                <Link
+                  key={category.id}
+                  href={productHref(category.id, category.name, "home")}
+                  className={styles.fastCard}
+                  onMouseEnter={() => warmCategory(category.id, category.name)}
+                  onFocus={() => warmCategory(category.id, category.name)}
+                  onTouchStart={() => warmCategory(category.id, category.name)}
+                >
+                  <div
+                    className={styles.fastCardMedia}
+                    style={{
+                      backgroundImage: categoryImages[category.name]
+                        ? `linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08)), url("${categoryImages[category.name]}")`
+                        : undefined,
+                    }}
+                  />
+                  <div className={styles.fastCardLabel}>{category.name.toUpperCase()}</div>
+                </Link>
+              ))}
+            </div>
+            <div className={styles.sectionDivider} />
+          </section>
+        ) : null}
+
+        {canRenderMenu && !isLoading && errorMessage && !homeData ? (
+          <section className={styles.sectionBlock}>
+            <div className={styles.statusCard}>{errorMessage}</div>
+          </section>
+        ) : null}
+
+        {canRenderMenu && !isLoading && !errorMessage && homeData && orderedProducts.length === 0 ? (
+          <section className={styles.sectionBlock}>
+            <div className={styles.statusCard}>No recommended products available for this branch.</div>
+          </section>
+        ) : null}
+
+        {canRenderMenu && !errorMessage && orderedProducts.length > 0 ? (
+          <section className={styles.sectionBlock}>
+            <div className={styles.sectionGrid}>
+              {orderedProducts.map(({ key, product }) => {
+                const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
+
+                return (
+                  <article key={key} className={styles.productCard}>
+                    <div className={styles.productArt} style={buildCardBackground(product)}>
+                      <span className={styles.productArtLabel}>
+                        {product.imageUrl ? "" : productAvatarLabel(product.name)}
+                      </span>
+                    </div>
+
+                    <div className={styles.productBody}>
+                      <div className={styles.productMetaRow}>
+                        <VegIcon isVeg={product.isVeg} />
+                      </div>
+                      <div className={styles.productTitle}>{product.name}</div>
+                      <div className={styles.productFooter}>
+                        <div className={styles.priceText}>₹{product.price}</div>
+
+                        {quantity === 0 ? (
+                          <button
+                            type="button"
+                            className={styles.addButton}
+                            onClick={() => addItem(product)}
+                          >
+                            ADD
+                          </button>
+                        ) : (
+                          <div className={styles.qtyControl}>
+                            <button type="button" onClick={() => decreaseItem(product.id)}>
+                              −
+                            </button>
+                            <span className={styles.qtyValue}>{quantity}</span>
+                            <button type="button" onClick={() => addItem(product)}>
+                              +
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {canRenderMenu && (homeData?.favoriteCategories ?? []).length > 0 ? (
+          <section className={styles.favoriteWrap}>
+            <div className={styles.favoriteGrid}>
+              {(homeData?.favoriteCategories ?? []).map((category) => (
+                <Link
+                  key={category.id}
+                  href={productHref(category.id, category.name, "home")}
+                  className={styles.favoriteCard}
+                  onMouseEnter={() => warmCategory(category.id, category.name)}
+                  onFocus={() => warmCategory(category.id, category.name)}
+                  onTouchStart={() => warmCategory(category.id, category.name)}
+                >
+                  <div
+                    className={styles.favoriteCardMedia}
+                    style={{
+                      backgroundImage: categoryImages[category.name]
+                        ? `linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08)), url("${categoryImages[category.name]}")`
+                        : undefined,
+                    }}
+                  />
+                  <div className={styles.favoriteCardLabel}>{category.name}</div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </section>
+
+      {canRenderMenu && totalItems > 0 ? (
+        <div className={styles.floatingCartBar}>
+          <div className={styles.floatingCartInfo}>
+            <div className={styles.avatarStack}>
+              {previewItems.map((item, index) => (
+                <div
+                  key={item.id}
+                  className={styles.avatarChip}
+                  style={{
+                    background: item.imageUrl
+                      ? `linear-gradient(rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.06)), url("${item.imageUrl}")`
+                      : item.accent,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    left: `${index * 17}px`,
+                  }}
+                >
+                  {item.imageUrl ? "" : productAvatarLabel(item.name)}
+                </div>
+              ))}
+            </div>
+            <div>
+              <strong>{summaryLabel}</strong>
+            </div>
+          </div>
+
+          <Link href="/kot" className={styles.floatingCartAction}>
+            <span>View cart</span>
+            <ChevronRightIcon className={styles.cartChevron} />
+          </Link>
+        </div>
+      ) : null}
+
+      <BottomNav />
+    </main>
+  );
+}

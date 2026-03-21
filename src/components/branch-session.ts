@@ -1,5 +1,7 @@
 export const SESSION_BRANCH_ID_KEY = "blackforest-order-web-branch-id";
 export const SESSION_BRANCH_NAME_KEY = "blackforest-order-web-branch-name";
+export const COOKIE_BRANCH_ID_KEY = "blackforest-order-web-branch-id";
+export const COOKIE_BRANCH_NAME_KEY = "blackforest-order-web-branch-name";
 export const SESSION_TABLE_NUMBER_KEY = "blackforest-order-web-table-number";
 export const SESSION_TABLE_SECTION_KEY = "blackforest-order-web-table-section";
 export const SESSION_TABLE_BRANCH_ID_KEY = "blackforest-order-web-table-branch-id";
@@ -35,6 +37,22 @@ export type ActiveBillSession = {
   customerPhone: string;
 };
 
+function writeCookie(name: string, value: string, maxAgeSeconds = 60 * 60 * 24 * 30) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax`;
+}
+
+function clearCookie(name: string) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
 export function readBranchSession(): BranchSession | null {
   if (typeof window === "undefined") {
     return null;
@@ -58,6 +76,8 @@ export function writeBranchSession(branchId: string, branchName: string) {
 
   window.sessionStorage.setItem(SESSION_BRANCH_ID_KEY, branchId);
   window.sessionStorage.setItem(SESSION_BRANCH_NAME_KEY, branchName);
+  writeCookie(COOKIE_BRANCH_ID_KEY, branchId);
+  writeCookie(COOKIE_BRANCH_NAME_KEY, branchName);
 }
 
 export function clearBranchSession() {
@@ -67,6 +87,8 @@ export function clearBranchSession() {
 
   window.sessionStorage.removeItem(SESSION_BRANCH_ID_KEY);
   window.sessionStorage.removeItem(SESSION_BRANCH_NAME_KEY);
+  clearCookie(COOKIE_BRANCH_ID_KEY);
+  clearCookie(COOKIE_BRANCH_NAME_KEY);
   clearTableSession();
 }
 

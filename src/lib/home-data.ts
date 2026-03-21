@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import type {
   BranchLookupResult,
   CategoriesPageData,
@@ -1138,8 +1139,7 @@ export async function findBranchByCoordinates(
   };
 }
 
-export async function getHomePageData(inputBranchId?: string): Promise<HomePageData> {
-  const branchId = readText(inputBranchId) || DEFAULT_BRANCH_ID;
+async function buildHomePageData(branchId: string): Promise<HomePageData> {
   const [widgetSettings, offerSettings, branchMeta, billingCategories, printerInfo] =
     await Promise.all([
       fetchJson("/globals/widget-settings?depth=1"),
@@ -1168,6 +1168,17 @@ export async function getHomePageData(inputBranchId?: string): Promise<HomePageD
     favoriteCategories: favoriteCategoryPayload.categories,
     ruleSections,
   };
+}
+
+const getCachedHomePageData = unstable_cache(
+  async (branchId: string) => buildHomePageData(branchId),
+  ["home-page-data"],
+  { revalidate: 60 },
+);
+
+export async function getHomePageData(inputBranchId?: string): Promise<HomePageData> {
+  const branchId = readText(inputBranchId) || DEFAULT_BRANCH_ID;
+  return getCachedHomePageData(branchId);
 }
 
 export async function getCategoriesPageData(
