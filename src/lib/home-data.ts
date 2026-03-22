@@ -1195,8 +1195,8 @@ async function buildCategoriesPageData(
     fetchJson("/globals/customer-offer-settings?depth=1"),
     fetchBranchMeta(branchId),
   ]);
-  const [categories, topCategories] = await Promise.all([
-    fetchAllCategories(branchMeta.companyId),
+  const [favoriteCategoryPayload, topCategories] = await Promise.all([
+    fetchFavoriteCategories(widgetSettings, branchId),
     fetchTopCategories(widgetSettings, branchId),
   ]);
   const offerSlides = await hydrateOfferSlides(buildOfferSlides(offerSettings));
@@ -1205,7 +1205,7 @@ async function buildCategoriesPageData(
     branchId,
     branchName: branchMeta.name,
     offerSlides,
-    categories,
+    categories: favoriteCategoryPayload.categories,
     topCategories,
   };
 }
