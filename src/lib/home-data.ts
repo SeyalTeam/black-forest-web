@@ -1212,7 +1212,7 @@ async function buildCategoriesPageData(
 
 const getCachedCategoriesPageData = unstable_cache(
   async (branchId: string) => buildCategoriesPageData(branchId),
-  ["categories-page-data"],
+  ["categories-page-data-v2"],
   { revalidate: 60 },
 );
 
