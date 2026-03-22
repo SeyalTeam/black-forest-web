@@ -32,7 +32,7 @@ import {
   prefetchProductsPageData,
 } from "@/lib/session-cache";
 
-const HOME_CACHE_KEY_PREFIX = "blackforest-order-web-home-data:";
+const HOME_CACHE_KEY_PREFIX = "blackforest-order-web-home-data-v2:";
 const HOME_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function extractFastMovementCategories(sections: RuleSection[]) {

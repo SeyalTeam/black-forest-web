@@ -818,7 +818,6 @@ async function fetchBranchRuleCategories(
   widgetSettings: unknown,
   branchId: string,
   ruleNameFilter?: string,
-  excludeRuleNameFilter?: string,
 ) {
   const rules = toArray(findByKey(widgetSettings, "favoriteCategoriesByBranchRules"));
   const titles: string[] = [];
@@ -826,7 +825,6 @@ async function fetchBranchRuleCategories(
   const seenTitles = new Set<string>();
   const seenCategoryIds = new Set<string>();
   const normalizedRuleName = readText(ruleNameFilter).toLowerCase();
-  const normalizedExcludedRuleName = readText(excludeRuleNameFilter).toLowerCase();
 
   for (const rawRule of rules) {
     const rule = toMap(rawRule);
@@ -841,9 +839,6 @@ async function fetchBranchRuleCategories(
     }
 
     const title = readText(rule.ruleName);
-    if (normalizedExcludedRuleName && title.toLowerCase() === normalizedExcludedRuleName) {
-      continue;
-    }
     if (normalizedRuleName && title.toLowerCase() !== normalizedRuleName) {
       continue;
     }
@@ -867,12 +862,7 @@ async function fetchBranchRuleCategories(
 }
 
 async function fetchFavoriteCategories(widgetSettings: unknown, branchId: string) {
-  const payload = await fetchBranchRuleCategories(
-    widgetSettings,
-    branchId,
-    undefined,
-    TOP_CATEGORY_RULE_NAME,
-  );
+  const payload = await fetchBranchRuleCategories(widgetSettings, branchId);
   return {
     title: payload.titles.length > 0 ? payload.titles.join(" / ") : "Favorite Categories",
     categories: payload.categories,
@@ -1182,7 +1172,7 @@ async function buildHomePageData(branchId: string): Promise<HomePageData> {
 
 const getCachedHomePageData = unstable_cache(
   async (branchId: string) => buildHomePageData(branchId),
-  ["home-page-data"],
+  ["home-page-data-v2"],
   { revalidate: 60 },
 );
 
@@ -1222,7 +1212,7 @@ async function buildCategoriesPageData(
 
 const getCachedCategoriesPageData = unstable_cache(
   async (branchId: string) => buildCategoriesPageData(branchId),
-  ["categories-page-data-v2"],
+  ["categories-page-data-v3"],
   { revalidate: 60 },
 );
 
