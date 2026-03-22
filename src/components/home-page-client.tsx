@@ -320,6 +320,10 @@ export default function HomePageClient({
     () => extractFastMovementCategories(orderedSections),
     [orderedSections],
   );
+  const circleCategories = useMemo(
+    () => homeData?.topCategories ?? [],
+    [homeData?.topCategories],
+  );
 
   const categoryImages = useMemo(() => {
     const map: Record<string, string> = {};
@@ -336,6 +340,9 @@ export default function HomePageClient({
     for (const category of homeData?.favoriteCategories ?? []) {
       addImage(category.name, category.imageUrl);
     }
+    for (const category of homeData?.topCategories ?? []) {
+      addImage(category.name, category.imageUrl);
+    }
     for (const category of fastMovementCategories) {
       addImage(category.name, category.imageUrl);
     }
@@ -350,6 +357,7 @@ export default function HomePageClient({
     fastMovementCategories,
     homeData?.billingCategories,
     homeData?.favoriteCategories,
+    homeData?.topCategories,
     orderedSections,
   ]);
 
@@ -385,7 +393,7 @@ export default function HomePageClient({
 
   useEffect(() => {
     const activeBranchId = branchId || requestedBranchId;
-    if (!activeBranchId || !(homeData?.billingCategories?.length || fastMovementCategories.length)) {
+    if (!activeBranchId || !(circleCategories.length || fastMovementCategories.length)) {
       return;
     }
 
@@ -398,11 +406,7 @@ export default function HomePageClient({
       void router.prefetch(categoriesHref(activeBranchId));
       void prefetchCategoriesPageData(activeBranchId);
 
-      const warmCategories = [
-        ...(homeData?.billingCategories ?? []),
-        ...fastMovementCategories,
-        ...(homeData?.favoriteCategories ?? []),
-      ].slice(0, 4);
+      const warmCategories = [...circleCategories, ...fastMovementCategories].slice(0, 4);
 
       for (const category of warmCategories) {
         void prefetchProductsPageData({
@@ -433,8 +437,7 @@ export default function HomePageClient({
   }, [
     branchId,
     requestedBranchId,
-    homeData?.billingCategories,
-    homeData?.favoriteCategories,
+    circleCategories,
     fastMovementCategories,
     router,
   ]);
@@ -582,7 +585,7 @@ export default function HomePageClient({
               </span>
               <span className={styles.circleLabel}>All</span>
             </Link>
-            {(homeData?.billingCategories ?? []).map((category) => (
+            {circleCategories.map((category) => (
               <Link
                 key={category.id}
                 href={productHref(category.id, category.name, "home")}
