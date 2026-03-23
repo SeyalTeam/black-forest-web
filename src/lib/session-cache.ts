@@ -2,7 +2,7 @@ import type { CategoriesPageData, ProductsPageData } from "@/lib/order-types";
 
 const PAGE_CACHE_TTL_MS = 5 * 60 * 1000;
 export const CATEGORIES_CACHE_KEY_PREFIX = "blackforest-order-web-categories-v3:";
-export const PRODUCTS_CACHE_KEY_PREFIX = "blackforest-order-web-products:";
+export const PRODUCTS_CACHE_KEY_PREFIX = "blackforest-order-web-products-v2:";
 
 type CachedPayload<T> = {
   savedAt?: number;

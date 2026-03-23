@@ -174,14 +174,18 @@ function extractCategoryId(value: unknown): string {
   return extractRefId(map.id ?? map._id ?? map.$oid ?? map.value ?? value);
 }
 
+function normalizeObjectKey(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 function findByKey(node: unknown, target: string): unknown {
-  const normalizedTarget = target.toLowerCase();
+  const normalizedTarget = normalizeObjectKey(target);
 
   const scan = (value: unknown): unknown => {
     const map = toMap(value);
     if (map) {
       for (const [key, entry] of Object.entries(map)) {
-        if (key.toLowerCase() === normalizedTarget) {
+        if (normalizeObjectKey(key) === normalizedTarget) {
           return entry;
         }
       }
@@ -214,19 +218,26 @@ function readInventoryQuantity(
   const directCandidates = [
     map?.inventoryQuantity,
     map?.availableStock,
+    map?.availableQuantity,
     map?.availableQty,
     map?.currentStock,
+    map?.currentQuantity,
     map?.currentQty,
     map?.closingStock,
+    map?.closingQuantity,
     map?.closingQty,
     map?.remainingStock,
+    map?.remainingQuantity,
     map?.remainingQty,
     map?.balanceStock,
+    map?.balanceQuantity,
     map?.balanceQty,
     map?.stockQuantity,
     map?.stockQty,
     map?.stock,
     map?.productStock,
+    map?.quantityOnHand,
+    map?.onHandQuantity,
     map?.onHand,
   ];
 
@@ -244,19 +255,26 @@ function readInventoryQuantity(
   const nestedKeys = [
     "inventoryQuantity",
     "availableStock",
+    "availableQuantity",
     "availableQty",
     "currentStock",
+    "currentQuantity",
     "currentQty",
     "closingStock",
+    "closingQuantity",
     "closingQty",
     "remainingStock",
+    "remainingQuantity",
     "remainingQty",
     "balanceStock",
+    "balanceQuantity",
     "balanceQty",
     "stockQuantity",
     "stockQty",
     "stock",
     "productStock",
+    "quantityOnHand",
+    "onHandQuantity",
     "onHand",
   ];
 
@@ -312,6 +330,8 @@ function readInventoryProductId(node: unknown) {
   return extractRefId(
     map?.productId ??
       map?.itemId ??
+      findByKey(node, "productId") ??
+      findByKey(node, "itemId") ??
       toMap(productNode)?.id ??
       toMap(productNode)?._id ??
       productNode,
@@ -332,9 +352,15 @@ function readInventoryProductName(node: unknown) {
   return readText(
     map?.productName,
     map?.itemName,
+    findByKey(node, "productName"),
+    findByKey(node, "itemName"),
+    productNode,
     productMap?.name,
     productMap?.label,
     productMap?.title,
+    findByKey(productNode, "name"),
+    findByKey(productNode, "label"),
+    findByKey(productNode, "title"),
   );
 }
 
@@ -1450,7 +1476,7 @@ async function buildHomePageData(branchId: string): Promise<HomePageData> {
 
 const getCachedHomePageData = unstable_cache(
   async (branchId: string) => buildHomePageData(branchId),
-  ["home-page-data-v2"],
+  ["home-page-data-v3"],
   { revalidate: 60 },
 );
 
