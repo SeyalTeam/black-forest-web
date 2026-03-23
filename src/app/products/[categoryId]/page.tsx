@@ -263,13 +263,23 @@ export default function ProductsPage() {
             <div className={styles.sectionGrid}>
               {visibleProducts.map((product) => {
                 const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
+                const isOutOfStock = product.isOutOfStock || product.inventoryQuantity === 0;
 
                 return (
                   <article key={product.id} className={styles.productCard}>
-                    <div className={styles.productArt} style={buildCardBackground(product)}>
+                    <div className={styles.productArt}>
+                      <div
+                        className={`${styles.productArtBackground} ${
+                          isOutOfStock ? styles.productArtBackgroundOutOfStock : ""
+                        }`}
+                        style={buildCardBackground(product)}
+                      />
                       <span className={styles.productArtLabel}>
                         {product.imageUrl ? "" : productAvatarLabel(product.name)}
                       </span>
+                      {isOutOfStock ? (
+                        <span className={styles.productArtStockOverlay}>OUT OF STOCK</span>
+                      ) : null}
                     </div>
 
                     <div className={styles.productBody}>
@@ -280,7 +290,9 @@ export default function ProductsPage() {
                       <div className={styles.productFooter}>
                         <div className={styles.priceText}>₹{product.price}</div>
 
-                        {quantity === 0 ? (
+                        {isOutOfStock ? (
+                          <span className={styles.stockStatus}>OUT OF STOCK</span>
+                        ) : quantity === 0 ? (
                           <button
                             type="button"
                             className={styles.addButton}

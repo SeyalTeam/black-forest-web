@@ -9,6 +9,8 @@ export type Product = {
   accent: string;
   imageUrl: string;
   imageMediaId?: string;
+  inventoryQuantity: number | null;
+  isOutOfStock: boolean;
   isVeg: boolean;
 };
 

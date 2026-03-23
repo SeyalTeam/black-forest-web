@@ -40,6 +40,10 @@ const OFFER_PALETTE = [
 ] as const;
 
 type DynamicMap = Record<string, unknown>;
+type InventorySnapshot = {
+  quantity: number | null;
+  isOutOfStock: boolean;
+};
 
 function hashText(value: string) {
   let hash = 0;
@@ -102,6 +106,21 @@ function toNumber(value: unknown) {
 function toFiniteNumber(value: unknown) {
   const number = toNumber(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function readOptionalNumber(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().replaceAll(",", "");
+    if (!normalized) return null;
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
 }
 
 function readText(...values: unknown[]) {
@@ -185,6 +204,247 @@ function findByKey(node: unknown, target: string): unknown {
   };
 
   return scan(node);
+}
+
+function readInventoryQuantity(
+  node: unknown,
+  { includeGenericQuantity = false }: { includeGenericQuantity?: boolean } = {},
+): number | null {
+  const map = toMap(node);
+  const directCandidates = [
+    map?.inventoryQuantity,
+    map?.availableStock,
+    map?.availableQty,
+    map?.currentStock,
+    map?.currentQty,
+    map?.closingStock,
+    map?.closingQty,
+    map?.remainingStock,
+    map?.remainingQty,
+    map?.balanceStock,
+    map?.balanceQty,
+    map?.stockQuantity,
+    map?.stockQty,
+    map?.stock,
+    map?.productStock,
+    map?.onHand,
+  ];
+
+  if (includeGenericQuantity) {
+    directCandidates.push(map?.quantity, map?.qty);
+  }
+
+  for (const candidate of directCandidates) {
+    const quantity = readOptionalNumber(candidate);
+    if (quantity !== null) {
+      return quantity;
+    }
+  }
+
+  const nestedKeys = [
+    "inventoryQuantity",
+    "availableStock",
+    "availableQty",
+    "currentStock",
+    "currentQty",
+    "closingStock",
+    "closingQty",
+    "remainingStock",
+    "remainingQty",
+    "balanceStock",
+    "balanceQty",
+    "stockQuantity",
+    "stockQty",
+    "stock",
+    "productStock",
+    "onHand",
+  ];
+
+  if (includeGenericQuantity) {
+    nestedKeys.push("quantity", "qty");
+  }
+
+  for (const key of nestedKeys) {
+    const quantity = readOptionalNumber(findByKey(node, key));
+    if (quantity !== null) {
+      return quantity;
+    }
+  }
+
+  return null;
+}
+
+function readInventoryOutOfStock(node: unknown) {
+  const map = toMap(node);
+  const candidates = [
+    map?.isOutOfStock,
+    map?.outOfStock,
+    map?.soldOut,
+    map?.isSoldOut,
+    findByKey(node, "isOutOfStock"),
+    findByKey(node, "outOfStock"),
+    findByKey(node, "soldOut"),
+    findByKey(node, "isSoldOut"),
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate === undefined) continue;
+    return toBool(candidate);
+  }
+
+  return false;
+}
+
+function normalizeLookupKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function readInventoryProductId(node: unknown) {
+  const map = toMap(node);
+  const productNode =
+    map?.product ??
+    map?.item ??
+    map?.menuItem ??
+    findByKey(node, "product") ??
+    findByKey(node, "item") ??
+    findByKey(node, "menuItem");
+
+  return extractRefId(
+    map?.productId ??
+      map?.itemId ??
+      toMap(productNode)?.id ??
+      toMap(productNode)?._id ??
+      productNode,
+  );
+}
+
+function readInventoryProductName(node: unknown) {
+  const map = toMap(node);
+  const productNode =
+    map?.product ??
+    map?.item ??
+    map?.menuItem ??
+    findByKey(node, "product") ??
+    findByKey(node, "item") ??
+    findByKey(node, "menuItem");
+  const productMap = toMap(productNode);
+
+  return readText(
+    map?.productName,
+    map?.itemName,
+    productMap?.name,
+    productMap?.label,
+    productMap?.title,
+  );
+}
+
+async function fetchInventorySnapshotsByProduct(
+  products: Product[],
+  branchId?: string,
+) {
+  if (products.length === 0) {
+    return {
+      byId: new Map<string, InventorySnapshot>(),
+      byName: new Map<string, InventorySnapshot>(),
+    };
+  }
+
+  const applySnapshot = (
+    collection: Map<string, InventorySnapshot>,
+    key: string,
+    snapshot: InventorySnapshot,
+  ) => {
+    const normalizedKey = key.trim();
+    if (!normalizedKey) return;
+
+    const current = collection.get(normalizedKey);
+    if (!current) {
+      collection.set(normalizedKey, snapshot);
+      return;
+    }
+
+    const mergedQuantity =
+      current.quantity === null
+        ? snapshot.quantity
+        : snapshot.quantity === null
+          ? current.quantity
+          : Math.max(current.quantity, snapshot.quantity);
+
+    collection.set(normalizedKey, {
+      quantity: mergedQuantity,
+      isOutOfStock:
+        mergedQuantity !== null
+          ? mergedQuantity <= 0
+          : current.isOutOfStock && snapshot.isOutOfStock,
+    });
+  };
+
+  const productIds = new Set(products.map((product) => product.id).filter(Boolean));
+  const productNames = new Set(
+    products.map((product) => normalizeLookupKey(product.name)).filter(Boolean),
+  );
+  const byId = new Map<string, InventorySnapshot>();
+  const byName = new Map<string, InventorySnapshot>();
+  const branchCandidates = readText(branchId) ? [readText(branchId), "all"] : ["all"];
+
+  for (const branchCandidate of branchCandidates) {
+    const params = new URLSearchParams({
+      department: "all",
+      category: "all",
+      product: "all",
+      branch: branchCandidate,
+    });
+
+    try {
+      const response = await fetch(`${API_BASE}/reports/inventory?${params.toString()}`, {
+        next: { revalidate: 30 },
+        signal: AbortSignal.timeout(2000),
+      });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const payload = await response.json();
+      const matchedEntries = toArray(payload).filter((entry) => {
+        const productId = readInventoryProductId(entry);
+        if (productId && productIds.has(productId)) {
+          return true;
+        }
+
+        const productName = normalizeLookupKey(readInventoryProductName(entry));
+        return Boolean(productName && productNames.has(productName));
+      });
+
+      if (matchedEntries.length === 0) {
+        continue;
+      }
+
+      for (const entry of matchedEntries) {
+        const quantity = readInventoryQuantity(entry, { includeGenericQuantity: true });
+        const snapshot: InventorySnapshot = {
+          quantity,
+          isOutOfStock: quantity !== null ? quantity <= 0 : readInventoryOutOfStock(entry),
+        };
+
+        const productId = readInventoryProductId(entry);
+        if (productId && productIds.has(productId)) {
+          applySnapshot(byId, productId, snapshot);
+        }
+
+        const productName = normalizeLookupKey(readInventoryProductName(entry));
+        if (productName && productNames.has(productName)) {
+          applySnapshot(byName, productName, snapshot);
+        }
+      }
+
+      break;
+    } catch {
+      continue;
+    }
+  }
+
+  return { byId, byName };
 }
 
 function ruleMatchesBranch(branchesNode: unknown, branchId: string) {
@@ -398,6 +658,9 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
   const isVeg = toBool(map.isVeg ?? map.is_veg ?? map.veg);
   const imageUrl = readProductImage(map) ?? category?.imageUrl ?? "";
   const price = readBranchScopedPrice(map, branchId);
+  const inventoryQuantity = readInventoryQuantity(map);
+  const isOutOfStock =
+    inventoryQuantity !== null ? inventoryQuantity <= 0 : readInventoryOutOfStock(map);
 
   return {
     id,
@@ -410,6 +673,8 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
     accent: accentFor(id),
     imageUrl,
     imageMediaId: readProductImageMediaId(map),
+    inventoryQuantity,
+    isOutOfStock,
     isVeg,
   };
 }
@@ -575,7 +840,7 @@ async function hydrateCategories(categories: CategoryCard[]) {
   });
 }
 
-async function hydrateProducts(products: Product[]) {
+async function hydrateProducts(products: Product[], branchId?: string) {
   const categoryIds = [
     ...new Set(
       products
@@ -592,6 +857,7 @@ async function hydrateProducts(products: Product[]) {
     ),
   ];
   const mediaUrlById = new Map<string, string>();
+  const inventorySnapshotsPromise = fetchInventorySnapshotsByProduct(products, branchId);
 
   if (categoryIds.length > 0 || missingMediaIds.length > 0) {
     const requests: Promise<unknown>[] = [];
@@ -638,8 +904,18 @@ async function hydrateProducts(products: Product[]) {
     }
   }
 
+  const inventorySnapshots = await inventorySnapshotsPromise;
+
   return products.map((product) => {
     const category = categoriesById.get(product.categoryId);
+    const inventorySnapshot =
+      inventorySnapshots.byId.get(product.id) ??
+      inventorySnapshots.byName.get(normalizeLookupKey(product.name));
+    const inventoryQuantity = inventorySnapshot?.quantity ?? product.inventoryQuantity;
+    const isOutOfStock =
+      inventorySnapshot?.isOutOfStock ??
+      (inventoryQuantity !== null ? inventoryQuantity <= 0 : product.isOutOfStock);
+
     return {
       ...product,
       imageUrl:
@@ -651,6 +927,8 @@ async function hydrateProducts(products: Product[]) {
           ? category.name
           : product.category,
       categoryImageUrl: product.categoryImageUrl ?? category?.imageUrl,
+      inventoryQuantity,
+      isOutOfStock,
     };
   });
 }
@@ -694,7 +972,7 @@ async function fetchProductsForCategory(branchId: string, categoryId: string) {
     products.push(product);
   }
 
-  return hydrateProducts(products);
+  return hydrateProducts(products, branchId);
 }
 
 async function fetchBillingCategories(branchId: string) {
@@ -807,7 +1085,7 @@ async function fetchRuleSections(widgetSettings: unknown, branchId: string) {
     if (products.length === 0) continue;
     sections.push({
       title: readRuleTitle(rule),
-      products: await hydrateProducts(products),
+      products: await hydrateProducts(products, branchId),
     });
   }
 
