@@ -16,6 +16,8 @@ const DEFAULT_BRANCH_ID =
   process.env.NEXT_PUBLIC_DEFAULT_BRANCH_ID?.trim() ||
   "6906dc71896efbd4bc64d028";
 const TOP_CATEGORY_RULE_NAME = "top categories";
+const INVENTORY_FETCH_BATCH_SIZE = 8;
+const INVENTORY_FETCH_TIMEOUT_MS = 10_000;
 
 const ACCENTS = [
   "linear-gradient(135deg, #3b261e, #9d5a33)",
@@ -364,6 +366,57 @@ function readInventoryProductName(node: unknown) {
   );
 }
 
+function readInventoryReportQuantity(node: unknown, branchId?: string): number | null {
+  const map = toMap(node);
+  if (!map) return null;
+
+  const normalizedBranchId = readText(branchId);
+  if (normalizedBranchId) {
+    for (const rawBranch of toArray(map.branches)) {
+      const branch = toMap(rawBranch);
+      if (!branch) continue;
+
+      const currentBranchId = extractRefId(branch.id ?? branch.branchId ?? branch.branch);
+      if (currentBranchId !== normalizedBranchId) continue;
+
+      const branchQuantityCandidates = [
+        branch.inventory,
+        branch.instock,
+        branch.totalInventory,
+        branch.totalInstock,
+        branch.stock,
+        branch.quantity,
+      ];
+
+      for (const candidate of branchQuantityCandidates) {
+        const quantity = readOptionalNumber(candidate);
+        if (quantity !== null) {
+          return quantity;
+        }
+      }
+    }
+  }
+
+  const topLevelQuantityCandidates = [
+    map.totalInventory,
+    map.inventory,
+    map.totalInstock,
+    map.instock,
+    map.totalStock,
+    map.stock,
+    map.quantity,
+  ];
+
+  for (const candidate of topLevelQuantityCandidates) {
+    const quantity = readOptionalNumber(candidate);
+    if (quantity !== null) {
+      return quantity;
+    }
+  }
+
+  return readInventoryQuantity(node, { includeGenericQuantity: true });
+}
+
 async function fetchInventorySnapshotsByProduct(
   products: Product[],
   branchId?: string,
@@ -411,62 +464,76 @@ async function fetchInventorySnapshotsByProduct(
   );
   const byId = new Map<string, InventorySnapshot>();
   const byName = new Map<string, InventorySnapshot>();
-  const branchCandidates = readText(branchId) ? [readText(branchId), "all"] : ["all"];
+  const normalizedBranchId = readText(branchId) || "all";
 
-  for (const branchCandidate of branchCandidates) {
-    const params = new URLSearchParams({
-      department: "all",
-      category: "all",
-      product: "all",
-      branch: branchCandidate,
-    });
+  for (
+    let startIndex = 0;
+    startIndex < products.length;
+    startIndex += INVENTORY_FETCH_BATCH_SIZE
+  ) {
+    const batch = products.slice(startIndex, startIndex + INVENTORY_FETCH_BATCH_SIZE);
+    const snapshots = await Promise.all(
+      batch.map(async (product) => {
+        const params = new URLSearchParams({
+          department: "all",
+          category: product.categoryId.trim() || "all",
+          product: product.id,
+          branch: normalizedBranchId,
+        });
 
-    try {
-      const response = await fetch(`${API_BASE}/reports/inventory?${params.toString()}`, {
-        next: { revalidate: 30 },
-        signal: AbortSignal.timeout(2000),
-      });
+        try {
+          const response = await fetch(`${API_BASE}/reports/inventory?${params.toString()}`, {
+            next: { revalidate: 300 },
+            signal: AbortSignal.timeout(INVENTORY_FETCH_TIMEOUT_MS),
+          });
 
-      if (!response.ok) {
-        continue;
+          if (!response.ok) {
+            return null;
+          }
+
+          const payload = await response.json();
+          const reportProducts = toArray(toMap(payload)?.products ?? payload);
+          const matchedEntry = reportProducts.find((entry) => {
+            const productId = readInventoryProductId(entry);
+            if (productId && productId === product.id) {
+              return true;
+            }
+
+            return normalizeLookupKey(readInventoryProductName(entry)) ===
+              normalizeLookupKey(product.name);
+          });
+
+          if (!matchedEntry) {
+            return null;
+          }
+
+          const quantity = readInventoryReportQuantity(matchedEntry, branchId);
+          return {
+            productId: product.id,
+            productName: product.name,
+            snapshot: {
+              quantity,
+              isOutOfStock:
+                quantity !== null ? quantity <= 0 : readInventoryOutOfStock(matchedEntry),
+            },
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    for (const result of snapshots) {
+      if (!result) continue;
+
+      if (result.productId && productIds.has(result.productId)) {
+        applySnapshot(byId, result.productId, result.snapshot);
       }
 
-      const payload = await response.json();
-      const matchedEntries = toArray(payload).filter((entry) => {
-        const productId = readInventoryProductId(entry);
-        if (productId && productIds.has(productId)) {
-          return true;
-        }
-
-        const productName = normalizeLookupKey(readInventoryProductName(entry));
-        return Boolean(productName && productNames.has(productName));
-      });
-
-      if (matchedEntries.length === 0) {
-        continue;
+      const productName = normalizeLookupKey(result.productName);
+      if (productName && productNames.has(productName)) {
+        applySnapshot(byName, productName, result.snapshot);
       }
-
-      for (const entry of matchedEntries) {
-        const quantity = readInventoryQuantity(entry, { includeGenericQuantity: true });
-        const snapshot: InventorySnapshot = {
-          quantity,
-          isOutOfStock: quantity !== null ? quantity <= 0 : readInventoryOutOfStock(entry),
-        };
-
-        const productId = readInventoryProductId(entry);
-        if (productId && productIds.has(productId)) {
-          applySnapshot(byId, productId, snapshot);
-        }
-
-        const productName = normalizeLookupKey(readInventoryProductName(entry));
-        if (productName && productNames.has(productName)) {
-          applySnapshot(byName, productName, snapshot);
-        }
-      }
-
-      break;
-    } catch {
-      continue;
     }
   }
 
