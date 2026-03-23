@@ -16,8 +16,8 @@ const DEFAULT_BRANCH_ID =
   process.env.NEXT_PUBLIC_DEFAULT_BRANCH_ID?.trim() ||
   "6906dc71896efbd4bc64d028";
 const TOP_CATEGORY_RULE_NAME = "top categories";
-const INVENTORY_FETCH_BATCH_SIZE = 8;
-const INVENTORY_FETCH_TIMEOUT_MS = 10_000;
+const INVENTORY_FETCH_BATCH_SIZE = 4;
+const INVENTORY_FETCH_TIMEOUT_MS = 20_000;
 
 const ACCENTS = [
   "linear-gradient(135deg, #3b261e, #9d5a33)",
