@@ -330,7 +330,8 @@ function readInventoryProductId(node: unknown) {
     findByKey(node, "menuItem");
 
   return extractRefId(
-    map?.productId ??
+    map?.id ??
+      map?.productId ??
       map?.itemId ??
       findByKey(node, "productId") ??
       findByKey(node, "itemId") ??
@@ -352,6 +353,9 @@ function readInventoryProductName(node: unknown) {
   const productMap = toMap(productNode);
 
   return readText(
+    map?.name,
+    map?.label,
+    map?.title,
     map?.productName,
     map?.itemName,
     findByKey(node, "productName"),
