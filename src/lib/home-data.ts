@@ -937,7 +937,10 @@ async function hydrateCategories(categories: CategoryCard[]) {
   });
 }
 
-async function hydrateProducts(products: Product[], branchId?: string) {
+async function hydrateProducts(
+  products: Product[],
+  branchId?: string,
+): Promise<Product[]> {
   const categoryIds = [
     ...new Set(
       products
@@ -955,6 +958,7 @@ async function hydrateProducts(products: Product[], branchId?: string) {
   ];
   const mediaUrlById = new Map<string, string>();
   const inventorySnapshotsPromise = fetchInventorySnapshotsByProduct(products, branchId);
+  const kitchenMapPromise = fetchKitchensCategoryMap();
 
   if (categoryIds.length > 0 || missingMediaIds.length > 0) {
     const requests: Promise<unknown>[] = [];
@@ -1002,6 +1006,7 @@ async function hydrateProducts(products: Product[], branchId?: string) {
   }
 
   const inventorySnapshots = await inventorySnapshotsPromise;
+  const kitchenMap = await kitchenMapPromise;
 
   return products.map((product) => {
     const category = categoriesById.get(product.categoryId);
@@ -1012,6 +1017,10 @@ async function hydrateProducts(products: Product[], branchId?: string) {
     const isOutOfStock =
       inventorySnapshot?.isOutOfStock ??
       (inventoryQuantity !== null ? inventoryQuantity <= 0 : product.isOutOfStock);
+
+    const kitchenName = kitchenMap.get(product.categoryId);
+    const finalIsOutOfStock =
+      kitchenName?.toLowerCase() === "live-k1" ? false : isOutOfStock;
 
     return {
       ...product,
@@ -1025,9 +1034,34 @@ async function hydrateProducts(products: Product[], branchId?: string) {
           : product.category,
       categoryImageUrl: product.categoryImageUrl ?? category?.imageUrl,
       inventoryQuantity,
-      isOutOfStock,
+      isOutOfStock: finalIsOutOfStock,
     };
   });
+}
+
+async function fetchKitchensCategoryMap() {
+  try {
+    const payload = await fetchJson("/kitchens?limit=100&depth=1");
+    const docs = toArray(toMap(payload)?.docs ?? payload);
+    const categoryToKitchen = new Map<string, string>();
+
+    for (const rawKitchen of docs) {
+      const kitchen = toMap(rawKitchen);
+      if (!kitchen) continue;
+
+      const kitchenName = readText(kitchen.name);
+      for (const rawCategory of toArray(kitchen.categories)) {
+        const categoryId = extractRefId(rawCategory);
+        if (categoryId) {
+          categoryToKitchen.set(categoryId, kitchenName);
+        }
+      }
+    }
+
+    return categoryToKitchen;
+  } catch {
+    return new Map<string, string>();
+  }
 }
 
 async function fetchAllCategories(companyId?: string) {
@@ -1616,10 +1650,11 @@ export async function getProductsPageData(
     categories.find((category) => category.id === normalizedCategoryId) ??
     topCategories.find((category) => category.id === normalizedCategoryId) ??
     null;
+  const firstProduct = products && products.length > 0 ? products[0] : null;
   const resolvedCategoryName =
-    readText(inputCategoryName, selectedCategory?.name, products[0]?.category) || "Products";
+    readText(inputCategoryName, selectedCategory?.name, firstProduct?.category) || "Products";
   const resolvedCategoryImage =
-    selectedCategory?.imageUrl ?? products[0]?.categoryImageUrl ?? products[0]?.imageUrl ?? null;
+    selectedCategory?.imageUrl ?? firstProduct?.categoryImageUrl ?? firstProduct?.imageUrl ?? null;
   const orderedTopCategories = [
     {
       id: normalizedCategoryId,
