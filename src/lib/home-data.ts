@@ -294,7 +294,7 @@ function readInventoryQuantity(
   return null;
 }
 
-function readInventoryOutOfStock(node: unknown) {
+function readExplicitOutOfStock(node: unknown): boolean | null {
   const map = toMap(node);
   const candidates = [
     map?.isOutOfStock,
@@ -312,7 +312,11 @@ function readInventoryOutOfStock(node: unknown) {
     return toBool(candidate);
   }
 
-  return false;
+  return null;
+}
+
+function readInventoryOutOfStock(node: unknown) {
+  return readExplicitOutOfStock(node) ?? false;
 }
 
 function normalizeLookupKey(value: string) {
@@ -756,8 +760,9 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
   const imageUrl = readProductImage(map) ?? category?.imageUrl ?? "";
   const price = readBranchScopedPrice(map, branchId);
   const inventoryQuantity = readInventoryQuantity(map);
+  const explicitOutOfStock = readExplicitOutOfStock(map);
   const isOutOfStock =
-    inventoryQuantity !== null ? inventoryQuantity <= 0 : readInventoryOutOfStock(map);
+    explicitOutOfStock ?? (inventoryQuantity !== null ? inventoryQuantity <= 0 : false);
 
   return {
     id,
@@ -772,13 +777,14 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
     imageMediaId: readProductImageMediaId(map),
     inventoryQuantity,
     isOutOfStock,
+    hasExplicitOutOfStock: explicitOutOfStock !== null,
     isVeg,
   };
 }
 
 async function fetchJson(path: string) {
   const response = await fetch(`${API_BASE}${path}`, {
-    next: { revalidate: 60 },
+    next: { revalidate: 5 },
   });
 
   if (!response.ok) {
@@ -957,8 +963,16 @@ async function hydrateProducts(
     ),
   ];
   const mediaUrlById = new Map<string, string>();
-  const inventorySnapshotsPromise = fetchInventorySnapshotsByProduct(products, branchId);
-  const kitchenMapPromise = fetchKitchensCategoryMap();
+  const productsNeedingInventorySnapshots = products.filter(
+    (product) => !product.hasExplicitOutOfStock,
+  );
+  const inventorySnapshotsPromise =
+    productsNeedingInventorySnapshots.length > 0
+      ? fetchInventorySnapshotsByProduct(productsNeedingInventorySnapshots, branchId)
+      : Promise.resolve({
+          byId: new Map<string, InventorySnapshot>(),
+          byName: new Map<string, InventorySnapshot>(),
+        });
 
   if (categoryIds.length > 0 || missingMediaIds.length > 0) {
     const requests: Promise<unknown>[] = [];
@@ -1006,21 +1020,21 @@ async function hydrateProducts(
   }
 
   const inventorySnapshots = await inventorySnapshotsPromise;
-  const kitchenMap = await kitchenMapPromise;
 
   return products.map((product) => {
     const category = categoriesById.get(product.categoryId);
     const inventorySnapshot =
-      inventorySnapshots.byId.get(product.id) ??
-      inventorySnapshots.byName.get(normalizeLookupKey(product.name));
-    const inventoryQuantity = inventorySnapshot?.quantity ?? product.inventoryQuantity;
-    const isOutOfStock =
-      inventorySnapshot?.isOutOfStock ??
-      (inventoryQuantity !== null ? inventoryQuantity <= 0 : product.isOutOfStock);
-
-    const kitchenName = kitchenMap.get(product.categoryId);
-    const finalIsOutOfStock =
-      kitchenName?.toLowerCase() === "live-k1" ? false : isOutOfStock;
+      product.hasExplicitOutOfStock
+        ? undefined
+        : inventorySnapshots.byId.get(product.id) ??
+          inventorySnapshots.byName.get(normalizeLookupKey(product.name));
+    const inventoryQuantity = product.hasExplicitOutOfStock
+      ? product.inventoryQuantity
+      : inventorySnapshot?.quantity ?? product.inventoryQuantity;
+    const isOutOfStock = product.hasExplicitOutOfStock
+      ? product.isOutOfStock
+      : inventorySnapshot?.isOutOfStock ??
+        (inventoryQuantity !== null ? inventoryQuantity <= 0 : product.isOutOfStock);
 
     return {
       ...product,
@@ -1034,34 +1048,9 @@ async function hydrateProducts(
           : product.category,
       categoryImageUrl: product.categoryImageUrl ?? category?.imageUrl,
       inventoryQuantity,
-      isOutOfStock: finalIsOutOfStock,
+      isOutOfStock,
     };
   });
-}
-
-async function fetchKitchensCategoryMap() {
-  try {
-    const payload = await fetchJson("/kitchens?limit=100&depth=1");
-    const docs = toArray(toMap(payload)?.docs ?? payload);
-    const categoryToKitchen = new Map<string, string>();
-
-    for (const rawKitchen of docs) {
-      const kitchen = toMap(rawKitchen);
-      if (!kitchen) continue;
-
-      const kitchenName = readText(kitchen.name);
-      for (const rawCategory of toArray(kitchen.categories)) {
-        const categoryId = extractRefId(rawCategory);
-        if (categoryId) {
-          categoryToKitchen.set(categoryId, kitchenName);
-        }
-      }
-    }
-
-    return categoryToKitchen;
-  } catch {
-    return new Map<string, string>();
-  }
 }
 
 async function fetchAllCategories(companyId?: string) {
@@ -1581,8 +1570,8 @@ async function buildHomePageData(branchId: string): Promise<HomePageData> {
 
 const getCachedHomePageData = unstable_cache(
   async (branchId: string) => buildHomePageData(branchId),
-  ["home-page-data-v3"],
-  { revalidate: 60 },
+  ["home-page-data-v4"],
+  { revalidate: 5 },
 );
 
 export async function getHomePageData(inputBranchId?: string): Promise<HomePageData> {

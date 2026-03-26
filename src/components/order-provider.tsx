@@ -75,6 +75,10 @@ export function OrderProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<OrderContextValue>(() => {
     const addItem = (product: Product) => {
+      if (product.isOutOfStock) {
+        return;
+      }
+
       setCartItems((current) => {
         const existing = current.find((item) => item.id === product.id);
         if (!existing) {

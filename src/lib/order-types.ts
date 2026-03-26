@@ -11,6 +11,7 @@ export type Product = {
   imageMediaId?: string;
   inventoryQuantity: number | null;
   isOutOfStock: boolean;
+  hasExplicitOutOfStock?: boolean;
   isVeg: boolean;
 };
 

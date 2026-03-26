@@ -8,14 +8,34 @@ export async function GET(request: NextRequest) {
     const categoryName = request.nextUrl.searchParams.get("categoryName")?.trim() || undefined;
 
     if (!categoryId) {
-      return Response.json({ message: "Category id is required" }, { status: 400 });
+      return Response.json(
+        { message: "Category id is required" },
+        {
+          status: 400,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
+      );
     }
 
     const payload = await getProductsPageData(categoryId, branchId, categoryName);
-    return Response.json(payload);
+    return Response.json(payload, {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to load products page data";
-    return Response.json({ message }, { status: 500 });
+    return Response.json(
+      { message },
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      },
+    );
   }
 }

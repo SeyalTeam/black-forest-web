@@ -16,6 +16,8 @@ import {
   writeSessionCache,
 } from "@/lib/session-cache";
 
+const PRODUCTS_REFRESH_INTERVAL_MS = 5_000;
+
 function buildCardBackground(product: Product) {
   if (!product.imageUrl) {
     return { backgroundImage: product.accent };
@@ -119,6 +121,70 @@ export default function ProductsPage() {
     void loadPageData();
     return () => {
       isDisposed = true;
+    };
+  }, [branchId, categoryId, categoryNameFromQuery]);
+
+  useEffect(() => {
+    if (!branchId || !categoryId) {
+      return;
+    }
+
+    let isDisposed = false;
+    let isRefreshing = false;
+
+    const refreshPageData = async () => {
+      if (
+        isDisposed ||
+        isRefreshing ||
+        document.visibilityState !== "visible"
+      ) {
+        return;
+      }
+
+      isRefreshing = true;
+      try {
+        const query = new URLSearchParams({
+          branchId,
+          categoryId,
+        });
+        if (categoryNameFromQuery) {
+          query.set("categoryName", categoryNameFromQuery);
+        }
+
+        const response = await fetch(`/api/products-data?${query.toString()}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          throw new Error("Failed to load products");
+        }
+
+        const payload = (await response.json()) as ProductsPageData;
+        if (isDisposed) return;
+        setPageData(payload);
+        writeSessionCache(getProductsCacheKey(branchId, categoryId), payload);
+        setErrorMessage("");
+      } catch {
+        // Keep the current UI and retry on the next refresh cycle.
+      } finally {
+        isRefreshing = false;
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void refreshPageData();
+    }, PRODUCTS_REFRESH_INTERVAL_MS);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshPageData();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      isDisposed = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [branchId, categoryId, categoryNameFromQuery]);
 
@@ -263,7 +329,7 @@ export default function ProductsPage() {
             <div className={styles.sectionGrid}>
               {visibleProducts.map((product) => {
                 const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
-                const isOutOfStock = product.isOutOfStock || product.inventoryQuantity === 0;
+                const isOutOfStock = product.isOutOfStock;
 
                 return (
                   <article key={product.id} className={styles.productCard}>

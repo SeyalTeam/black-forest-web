@@ -32,8 +32,9 @@ import {
   prefetchProductsPageData,
 } from "@/lib/session-cache";
 
-const HOME_CACHE_KEY_PREFIX = "blackforest-order-web-home-data-v3:";
-const HOME_CACHE_TTL_MS = 5 * 60 * 1000;
+const HOME_CACHE_KEY_PREFIX = "blackforest-order-web-home-data-v4:";
+const HOME_CACHE_TTL_MS = 10 * 1000;
+const HOME_REFRESH_INTERVAL_MS = 5_000;
 
 function extractFastMovementCategories(sections: RuleSection[]) {
   const orderedCategories: CategoryCard[] = [];
@@ -141,7 +142,9 @@ function writeCachedHomeData(branchId: string, data: HomePageData) {
 
 async function fetchHomeDataForBranch(targetBranchId: string) {
   const suffix = targetBranchId ? `?branchId=${encodeURIComponent(targetBranchId)}` : "";
-  const response = await fetch(`/api/home-data${suffix}`);
+  const response = await fetch(`/api/home-data${suffix}`, {
+    cache: "no-store",
+  });
   if (!response.ok) {
     throw new Error("Failed to load homepage data");
   }
@@ -255,23 +258,27 @@ export default function HomePageClient({
     const loadHomeData = async () => {
       setErrorMessage("");
       const cachedData = readCachedHomeData(branchId);
-      const hasInitialData = homeData?.branchId === branchId;
+      const initialDataForBranch =
+        initialHomeData?.branchId === branchId ? initialHomeData : null;
 
       if (cachedData && !isDisposed) {
         setHomeData((current) => (current?.branchId === branchId ? current : cachedData));
-        setIsLoading(false);
         writeBranchSession(branchId, cachedData.branchName || "");
-        return;
       }
 
-      if (hasInitialData && homeData) {
-        writeCachedHomeData(branchId, homeData);
-        writeBranchSession(branchId, homeData.branchName || "");
+      if (initialDataForBranch && !isDisposed) {
+        setHomeData((current) =>
+          current?.branchId === branchId ? current : initialDataForBranch,
+        );
+        writeCachedHomeData(branchId, initialDataForBranch);
+        writeBranchSession(branchId, initialDataForBranch.branchName || "");
+      }
+
+      if (cachedData || initialDataForBranch) {
         setIsLoading(false);
-        return;
+      } else {
+        setIsLoading(true);
       }
-
-      setIsLoading(true);
 
       try {
         const payload = await fetchHomeDataForBranch(branchId);
@@ -279,11 +286,14 @@ export default function HomePageClient({
         setHomeData(payload);
         writeBranchSession(branchId, payload.branchName || "");
         writeCachedHomeData(branchId, payload);
+        setErrorMessage("");
       } catch (error) {
         if (isDisposed) return;
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to load homepage data",
-        );
+        if (!cachedData && !initialDataForBranch) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to load homepage data",
+          );
+        }
       } finally {
         if (!isDisposed) {
           setIsLoading(false);
@@ -295,7 +305,57 @@ export default function HomePageClient({
     return () => {
       isDisposed = true;
     };
-  }, [branchId, homeData]);
+  }, [branchId, initialHomeData]);
+
+  useEffect(() => {
+    if (!branchId) {
+      return;
+    }
+
+    let isDisposed = false;
+    let isRefreshing = false;
+
+    const refreshHomeData = async () => {
+      if (
+        isDisposed ||
+        isRefreshing ||
+        document.visibilityState !== "visible"
+      ) {
+        return;
+      }
+
+      isRefreshing = true;
+      try {
+        const payload = await fetchHomeDataForBranch(branchId);
+        if (isDisposed) return;
+        setHomeData(payload);
+        writeBranchSession(branchId, payload.branchName || "");
+        writeCachedHomeData(branchId, payload);
+        setErrorMessage("");
+      } catch {
+        // Keep the current UI and try again on the next refresh cycle.
+      } finally {
+        isRefreshing = false;
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void refreshHomeData();
+    }, HOME_REFRESH_INTERVAL_MS);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshHomeData();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      isDisposed = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [branchId]);
 
   const summaryLabel = totalItems === 1 ? "1 item added" : `${totalItems} items added`;
   const previewItems = useMemo(
@@ -658,7 +718,7 @@ export default function HomePageClient({
             <div className={styles.sectionGrid}>
               {orderedProducts.map(({ key, product }) => {
                 const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
-                const isOutOfStock = product.isOutOfStock || product.inventoryQuantity === 0;
+                const isOutOfStock = product.isOutOfStock;
 
                 return (
                   <article key={key} className={styles.productCard}>

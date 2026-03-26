@@ -1,8 +1,8 @@
 import type { CategoriesPageData, ProductsPageData } from "@/lib/order-types";
 
-const PAGE_CACHE_TTL_MS = 5 * 60 * 1000;
-export const CATEGORIES_CACHE_KEY_PREFIX = "blackforest-order-web-categories-v3:";
-export const PRODUCTS_CACHE_KEY_PREFIX = "blackforest-order-web-products-v2:";
+const PAGE_CACHE_TTL_MS = 10 * 1000;
+export const CATEGORIES_CACHE_KEY_PREFIX = "blackforest-order-web-categories-v4:";
+export const PRODUCTS_CACHE_KEY_PREFIX = "blackforest-order-web-products-v3:";
 
 type CachedPayload<T> = {
   savedAt?: number;
@@ -29,7 +29,7 @@ function buildProductsDataUrl({
 }
 
 async function fetchApiPayload<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+  const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Request failed for ${url}`);
   }
