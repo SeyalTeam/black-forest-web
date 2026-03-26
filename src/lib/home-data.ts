@@ -296,6 +296,18 @@ function readInventoryQuantity(
 
 function readExplicitOutOfStock(node: unknown): boolean | null {
   const map = toMap(node);
+  const explicitAvailability = [
+    map?.isAvailable,
+    findByKey(node, "isAvailable"),
+  ];
+
+  for (const candidate of explicitAvailability) {
+    if (candidate === undefined) continue;
+    if (toBool(candidate) === false) {
+      return true;
+    }
+  }
+
   const candidates = [
     map?.isOutOfStock,
     map?.outOfStock,
@@ -695,10 +707,6 @@ function readProductImageMediaId(productNode: unknown) {
 
 function isProductActiveForBranch(product: DynamicMap, branchId?: string) {
   if (readText(product.status).toLowerCase() === "inactive") {
-    return false;
-  }
-
-  if (product.isAvailable === false) {
     return false;
   }
 
