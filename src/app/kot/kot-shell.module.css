@@ -210,6 +210,8 @@
   width: 21px;
   height: 21px;
   color: #7a8190;
+  display: block;
+  flex: 0 0 auto;
 }
 
 .itemActions {
@@ -348,6 +350,7 @@
   font-weight: 600;
   line-height: 1.25;
   word-break: break-word;
+  margin-left: -30px;
 }
 
 .customerModal,
@@ -945,6 +948,7 @@
 
   .itemSavedNote {
     font-size: 0.74rem;
+    margin-left: -28px;
   }
 
   .requestButton {
