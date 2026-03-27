@@ -197,6 +197,7 @@
   font-size: 0.96rem;
   font-weight: 700;
   white-space: nowrap;
+  margin-top: 2px;
 }
 
 .requestButtonIcon {
@@ -333,11 +334,6 @@
   font-weight: 800;
   box-shadow: 0 12px 20px rgba(28, 168, 69, 0.2);
   cursor: pointer;
-}
-
-.itemRequestPanel {
-  margin-left: 8px;
-  margin-right: 0;
 }
 
 .itemSavedNote {
@@ -943,11 +939,6 @@
 
   .itemSavedNote {
     font-size: 0.74rem;
-  }
-
-  .itemRequestPanel {
-    margin-left: 4px;
-    margin-right: 0;
   }
 
   .requestButton {

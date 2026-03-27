@@ -826,6 +826,18 @@ export default function KotPage() {
                               {hasSavedNote ? (
                                 <div className={styles.itemSavedNote}>{itemNote}</div>
                               ) : null}
+                              <button
+                                type="button"
+                                className={styles.requestButton}
+                                onClick={() => {
+                                  setEditingRequestItemId(item.id);
+                                  setRequestDraft(cookingRequests[item.id] ?? "");
+                                }}
+                                aria-label="Cooking requests"
+                              >
+                                <NoteAddIcon className={styles.requestButtonIcon} />
+                                <span>Cooking requests</span>
+                              </button>
                             </div>
                           </div>
 
@@ -842,20 +854,6 @@ export default function KotPage() {
                             <div className={styles.itemPrice}>₹{item.price * item.quantity}</div>
                           </div>
                         </article>
-                        <div className={styles.itemRequestPanel}>
-                          <button
-                            type="button"
-                            className={styles.requestButton}
-                            onClick={() => {
-                              setEditingRequestItemId(item.id);
-                              setRequestDraft(cookingRequests[item.id] ?? "");
-                            }}
-                            aria-label="Cooking requests"
-                          >
-                            <NoteAddIcon className={styles.requestButtonIcon} />
-                            <span>Cooking requests</span>
-                          </button>
-                        </div>
                       </div>
                     );
                   })
