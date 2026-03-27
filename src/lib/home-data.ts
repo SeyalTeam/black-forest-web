@@ -724,6 +724,10 @@ function isProductActiveForBranch(product: DynamicMap, branchId?: string) {
     return false;
   }
 
+  if (product.isAvailable === false) {
+    return false;
+  }
+
   if (!branchId) {
     return true;
   }
