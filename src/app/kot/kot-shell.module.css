@@ -166,6 +166,10 @@
   gap: 12px;
 }
 
+.currentItemLead {
+  align-items: flex-start;
+}
+
 .itemMeta {
   min-width: 0;
   display: flex;
@@ -197,6 +201,7 @@
   font-size: 0.96rem;
   font-weight: 700;
   white-space: nowrap;
+  align-self: flex-start;
   margin-top: 2px;
 }
 

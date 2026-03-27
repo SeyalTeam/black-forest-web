@@ -819,7 +819,7 @@ export default function KotPage() {
                     return (
                       <div key={item.id} className={styles.itemGroup}>
                         <article className={styles.itemRow}>
-                          <div className={styles.itemLead}>
+                          <div className={`${styles.itemLead} ${styles.currentItemLead}`}>
                             <VegIcon isVeg={item.isVeg} />
                             <div className={styles.itemMeta}>
                               <h3>{item.name}</h3>
