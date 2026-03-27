@@ -186,8 +186,9 @@
 }
 
 .requestButton {
-  width: fit-content;
-  max-width: 100%;
+  width: auto;
+  min-width: 210px;
+  max-width: none;
   min-height: 48px;
   display: inline-flex;
   align-items: center;
@@ -953,6 +954,7 @@
 
   .requestButton {
     min-height: 38px;
+    min-width: 188px;
     padding: 0 12px;
     border-radius: 12px;
     gap: 8px;
