@@ -813,7 +813,7 @@ export default function KotPage() {
 
               <div className={styles.itemList}>
                 {hasCurrentItems ? (
-                  cartItems.map((item, index) => {
+                  cartItems.map((item) => {
                     const itemNote = cookingRequests[item.id]?.trim() ?? "";
                     const hasSavedNote = itemNote.length > 0;
 
@@ -826,33 +826,9 @@ export default function KotPage() {
                               <h3>{item.name}</h3>
                               {hasSavedNote ? (
                                 <div className={styles.itemSavedNote}>{itemNote}</div>
-                              ) : index === 0 ? (
-                                <div className={styles.itemHintText}>
-                                  Tap
-                                  <NoteAddIcon className={styles.itemHintInlineIcon} />
-                                  Icon to add a cooking note
-                                </div>
                               ) : null}
                             </div>
                           </div>
-
-                          <button
-                            type="button"
-                            className={styles.noteButton}
-                            onClick={() => {
-                              setEditingRequestItemId(item.id);
-                              setRequestDraft(cookingRequests[item.id] ?? "");
-                            }}
-                            aria-label="Cooking requests"
-                          >
-                            {hasSavedNote ? (
-                              <NoteSavedIcon
-                                className={`${styles.noteIcon} ${styles.noteSavedIcon}`}
-                              />
-                            ) : (
-                              <NoteAddIcon className={styles.noteIcon} />
-                            )}
-                          </button>
 
                           <div className={styles.itemActions}>
                             <div className={styles.qtyBox}>
@@ -867,6 +843,26 @@ export default function KotPage() {
                             <div className={styles.itemPrice}>₹{item.price * item.quantity}</div>
                           </div>
                         </article>
+                        <div className={styles.itemRequestPanel}>
+                          <button
+                            type="button"
+                            className={styles.requestButton}
+                            onClick={() => {
+                              setEditingRequestItemId(item.id);
+                              setRequestDraft(cookingRequests[item.id] ?? "");
+                            }}
+                            aria-label="Cooking requests"
+                          >
+                            {hasSavedNote ? (
+                              <NoteSavedIcon
+                                className={`${styles.requestButtonIcon} ${styles.requestButtonSavedIcon}`}
+                              />
+                            ) : (
+                              <NoteAddIcon className={styles.requestButtonIcon} />
+                            )}
+                            <span>Cooking requests</span>
+                          </button>
+                        </div>
                       </div>
                     );
                   })
