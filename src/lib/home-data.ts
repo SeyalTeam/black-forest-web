@@ -296,16 +296,6 @@ function readInventoryQuantity(
 
 function readExplicitOutOfStock(node: unknown): boolean | null {
   const map = toMap(node);
-  const explicitStock = [
-    map?.isStock,
-    findByKey(node, "isStock"),
-  ];
-
-  for (const candidate of explicitStock) {
-    if (candidate === undefined) continue;
-    return !toBool(candidate);
-  }
-
   const candidates = [
     map?.isOutOfStock,
     map?.outOfStock,
@@ -319,7 +309,33 @@ function readExplicitOutOfStock(node: unknown): boolean | null {
 
   for (const candidate of candidates) {
     if (candidate === undefined) continue;
-    return toBool(candidate);
+    if (toBool(candidate)) {
+      return true;
+    }
+    break;
+  }
+
+  const explicitStock = [
+    map?.isStock,
+    findByKey(node, "isStock"),
+  ];
+
+  for (const candidate of explicitStock) {
+    if (candidate === undefined) continue;
+    if (toBool(candidate) === false) {
+      return true;
+    }
+    break;
+  }
+
+  for (const candidate of candidates) {
+    if (candidate === undefined) continue;
+    return false;
+  }
+
+  for (const candidate of explicitStock) {
+    if (candidate === undefined) continue;
+    return false;
   }
 
   return null;
