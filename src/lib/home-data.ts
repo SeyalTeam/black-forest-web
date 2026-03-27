@@ -296,16 +296,14 @@ function readInventoryQuantity(
 
 function readExplicitOutOfStock(node: unknown): boolean | null {
   const map = toMap(node);
-  const explicitAvailability = [
-    map?.isAvailable,
-    findByKey(node, "isAvailable"),
+  const explicitStock = [
+    map?.isStock,
+    findByKey(node, "isStock"),
   ];
 
-  for (const candidate of explicitAvailability) {
+  for (const candidate of explicitStock) {
     if (candidate === undefined) continue;
-    if (toBool(candidate) === false) {
-      return true;
-    }
+    return !toBool(candidate);
   }
 
   const candidates = [
