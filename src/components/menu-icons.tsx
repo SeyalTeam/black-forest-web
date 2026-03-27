@@ -195,21 +195,29 @@ export function NoteAddIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
       <path
-        d="M7 4.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V6A1.5 1.5 0 0 1 7.5 4.5Z"
+        d="m4.4 15.9 1-.2 2.8-2.8-1.8-1.8-2.8 2.8-.2 1a.6.6 0 0 0 .7.7Z"
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinejoin="round"
       />
       <path
-        d="M14 4.5V9h4"
+        d="m7.2 10.3 1.8 1.8"
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="m8.2 9.3 4-4a1.5 1.5 0 0 1 2.1 0l1.3 1.3a1.5 1.5 0 0 1 0 2.1l-4 4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
-        d="M12 11.5v5M9.5 14h5"
+        d="M12.5 18.2c1.1-.9 2-.9 3.1 0 .9.8 1.8.8 2.9 0"
         fill="none"
         stroke="currentColor"
         strokeWidth="2"

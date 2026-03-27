@@ -182,7 +182,8 @@
 }
 
 .requestButton {
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
   min-height: 48px;
   display: inline-flex;
   align-items: center;
@@ -195,18 +196,13 @@
   color: #586170;
   font-size: 0.96rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .requestButtonIcon {
   width: 21px;
   height: 21px;
   color: #7a8190;
-}
-
-.requestButtonSavedIcon {
-  width: 23px;
-  height: 23px;
-  color: #1aaa61;
 }
 
 .itemActions {
@@ -965,11 +961,6 @@
   .requestButtonIcon {
     width: 18px;
     height: 18px;
-  }
-
-  .requestButtonSavedIcon {
-    width: 19px;
-    height: 19px;
   }
 
   .itemActions {

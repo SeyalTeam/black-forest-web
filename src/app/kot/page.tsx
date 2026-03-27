@@ -18,7 +18,6 @@ import {
   CloseIcon,
   HistoryIcon,
   NoteAddIcon,
-  NoteSavedIcon,
   PinIcon,
   TableIcon,
   UpiIcon,
@@ -853,13 +852,7 @@ export default function KotPage() {
                             }}
                             aria-label="Cooking requests"
                           >
-                            {hasSavedNote ? (
-                              <NoteSavedIcon
-                                className={`${styles.requestButtonIcon} ${styles.requestButtonSavedIcon}`}
-                              />
-                            ) : (
-                              <NoteAddIcon className={styles.requestButtonIcon} />
-                            )}
+                            <NoteAddIcon className={styles.requestButtonIcon} />
                             <span>Cooking requests</span>
                           </button>
                         </div>
