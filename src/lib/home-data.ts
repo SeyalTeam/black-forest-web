@@ -294,7 +294,33 @@ function readInventoryQuantity(
   return null;
 }
 
-function readExplicitOutOfStock(node: unknown): boolean | null {
+function readBranchOverride(product: DynamicMap, branchId?: string): DynamicMap | null {
+  if (!branchId) return null;
+
+  for (const rawOverride of toArray(product.branchOverrides)) {
+    const override = toMap(rawOverride);
+    if (!override) continue;
+    if (extractRefId(override.branch) === branchId) {
+      return override;
+    }
+  }
+
+  return null;
+}
+
+function readBranchOutOfStock(product: DynamicMap, branchId?: string): boolean | null {
+  if (!branchId) return null;
+
+  for (const rawBranch of toArray(product.outOfStockBranches)) {
+    if (extractRefId(rawBranch) === branchId) {
+      return true;
+    }
+  }
+
+  return null;
+}
+
+function readExplicitOutOfStockValue(node: unknown): boolean | null {
   const map = toMap(node);
   const candidates = [
     map?.isOutOfStock,
@@ -341,8 +367,20 @@ function readExplicitOutOfStock(node: unknown): boolean | null {
   return null;
 }
 
+function readExplicitOutOfStock(node: unknown, branchId?: string): boolean | null {
+  const map = toMap(node);
+  if (map) {
+    const branchValue = readBranchOutOfStock(map, branchId);
+    if (branchValue !== null) {
+      return branchValue;
+    }
+  }
+
+  return readExplicitOutOfStockValue(node);
+}
+
 function readInventoryOutOfStock(node: unknown) {
-  return readExplicitOutOfStock(node) ?? false;
+  return readExplicitOutOfStockValue(node) ?? false;
 }
 
 function normalizeLookupKey(value: string) {
@@ -747,11 +785,8 @@ function readBranchScopedPrice(product: DynamicMap, branchId?: string) {
     return price;
   }
 
-  for (const rawOverride of toArray(product.branchOverrides)) {
-    const override = toMap(rawOverride);
-    if (!override) continue;
-    if (extractRefId(override.branch) !== branchId) continue;
-
+  const override = readBranchOverride(product, branchId);
+  if (override) {
     const overridePrice =
       toNumber(override.price) ||
       toNumber(override.offerPrice) ||
@@ -759,7 +794,6 @@ function readBranchScopedPrice(product: DynamicMap, branchId?: string) {
     if (overridePrice > 0) {
       price = overridePrice;
     }
-    break;
   }
 
   return price;
@@ -786,7 +820,7 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
   const imageUrl = readProductImage(map) ?? category?.imageUrl ?? "";
   const price = readBranchScopedPrice(map, branchId);
   const inventoryQuantity = readInventoryQuantity(map);
-  const explicitOutOfStock = readExplicitOutOfStock(map);
+  const explicitOutOfStock = readExplicitOutOfStock(map, branchId);
   const isOutOfStock =
     explicitOutOfStock ?? (inventoryQuantity !== null ? inventoryQuantity <= 0 : false);
 
