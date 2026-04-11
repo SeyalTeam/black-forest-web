@@ -2,8 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+} from "react";
+import {
+  COOKIE_ADMIN_AUTH_KEY,
   clearBranchSession,
   clearTableSession,
   readBranchSession,
@@ -35,6 +43,94 @@ import {
 const HOME_CACHE_KEY_PREFIX = "blackforest-order-web-home-data-v4:";
 const HOME_CACHE_TTL_MS = 10 * 1000;
 const HOME_REFRESH_INTERVAL_MS = 5_000;
+const FAVORITE_ORDER_KEY_PREFIX = "blackforest-order-web-favorite-categories-order-v1:";
+
+function readFavoriteOrder(branchId: string): string[] {
+  if (typeof window === "undefined" || !branchId.trim()) {
+    return [];
+  }
+
+  const raw = window.localStorage.getItem(`${FAVORITE_ORDER_KEY_PREFIX}${branchId}`);
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => item.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function writeFavoriteOrder(branchId: string, categoryIds: string[]) {
+  if (typeof window === "undefined" || !branchId.trim()) {
+    return;
+  }
+
+  window.localStorage.setItem(
+    `${FAVORITE_ORDER_KEY_PREFIX}${branchId}`,
+    JSON.stringify(categoryIds),
+  );
+}
+
+function clearFavoriteOrder(branchId: string) {
+  if (typeof window === "undefined" || !branchId.trim()) {
+    return;
+  }
+
+  window.localStorage.removeItem(`${FAVORITE_ORDER_KEY_PREFIX}${branchId}`);
+}
+
+function applyFavoriteOrder(categories: CategoryCard[], order: string[]) {
+  if (categories.length <= 1 || order.length === 0) {
+    return categories;
+  }
+
+  const rank = new Map<string, number>();
+  order.forEach((categoryId, index) => {
+    if (!rank.has(categoryId)) {
+      rank.set(categoryId, index);
+    }
+  });
+
+  return [...categories].sort((left, right) => {
+    const leftRank = rank.get(left.id);
+    const rightRank = rank.get(right.id);
+
+    if (leftRank === undefined && rightRank === undefined) return 0;
+    if (leftRank === undefined) return 1;
+    if (rightRank === undefined) return -1;
+    return leftRank - rightRank;
+  });
+}
+
+function reorderFavoriteCategories(
+  categories: CategoryCard[],
+  draggedCategoryId: string,
+  targetCategoryId: string,
+) {
+  if (!draggedCategoryId || !targetCategoryId || draggedCategoryId === targetCategoryId) {
+    return categories;
+  }
+
+  const draggedIndex = categories.findIndex((category) => category.id === draggedCategoryId);
+  const targetIndex = categories.findIndex((category) => category.id === targetCategoryId);
+  if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) {
+    return categories;
+  }
+
+  const next = [...categories];
+  const [draggedCategory] = next.splice(draggedIndex, 1);
+  next.splice(targetIndex, 0, draggedCategory);
+  return next;
+}
 
 function extractFastMovementCategories(sections: RuleSection[]) {
   const orderedCategories: CategoryCard[] = [];
@@ -159,6 +255,7 @@ type HomePageClientProps = {
   initialRequestedBranchId: string;
   initialRequestedTableNumber: string;
   initialRequestedTableSection: string;
+  initialIsAdmin: boolean;
 };
 
 export default function HomePageClient({
@@ -168,6 +265,7 @@ export default function HomePageClient({
   initialRequestedBranchId,
   initialRequestedTableNumber,
   initialRequestedTableSection,
+  initialIsAdmin,
 }: HomePageClientProps) {
   const router = useRouter();
   const { cartItems, totalItems, addItem, decreaseItem } = useOrder();
@@ -182,6 +280,19 @@ export default function HomePageClient({
     initialRequestedTableSection,
   );
   const [activeOfferIndex, setActiveOfferIndex] = useState(0);
+  const [favoriteCategories, setFavoriteCategories] = useState<CategoryCard[]>(
+    initialHomeData?.favoriteCategories ?? [],
+  );
+  const [draggedFavoriteCategoryId, setDraggedFavoriteCategoryId] = useState("");
+  const [favoriteDropCategoryId, setFavoriteDropCategoryId] = useState("");
+
+  useEffect(() => {
+    if (typeof document === "undefined" || !initialIsAdmin) {
+      return;
+    }
+
+    document.cookie = `${COOKIE_ADMIN_AUTH_KEY}=1; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+  }, [initialIsAdmin]);
 
   useEffect(() => {
     let isDisposed = false;
@@ -384,6 +495,25 @@ export default function HomePageClient({
     () => homeData?.topCategories ?? [],
     [homeData?.topCategories],
   );
+  const baseFavoriteCategories = useMemo(
+    () => homeData?.favoriteCategories ?? [],
+    [homeData?.favoriteCategories],
+  );
+
+  useEffect(() => {
+    if (!branchId) {
+      setFavoriteCategories(baseFavoriteCategories);
+      return;
+    }
+
+    const favoriteOrder = readFavoriteOrder(branchId);
+    if (favoriteOrder.length === 0) {
+      setFavoriteCategories(baseFavoriteCategories);
+      return;
+    }
+
+    setFavoriteCategories(applyFavoriteOrder(baseFavoriteCategories, favoriteOrder));
+  }, [baseFavoriteCategories, branchId]);
 
   const categoryImages = useMemo(() => {
     const map: Record<string, string> = {};
@@ -397,7 +527,7 @@ export default function HomePageClient({
     for (const category of homeData?.billingCategories ?? []) {
       addImage(category.name, category.imageUrl);
     }
-    for (const category of homeData?.favoriteCategories ?? []) {
+    for (const category of baseFavoriteCategories) {
       addImage(category.name, category.imageUrl);
     }
     for (const category of homeData?.topCategories ?? []) {
@@ -414,9 +544,9 @@ export default function HomePageClient({
 
     return map;
   }, [
+    baseFavoriteCategories,
     fastMovementCategories,
     homeData?.billingCategories,
-    homeData?.favoriteCategories,
     homeData?.topCategories,
     orderedSections,
   ]);
@@ -520,6 +650,78 @@ export default function HomePageClient({
       categoryName,
     });
   }, [branchId, requestedBranchId, router]);
+  const isFavoriteDragEnabled =
+    initialIsAdmin && canRenderMenu && favoriteCategories.length > 1;
+
+  const resetFavoriteCategoryOrder = useCallback(() => {
+    if (!branchId) {
+      return;
+    }
+
+    clearFavoriteOrder(branchId);
+    setFavoriteCategories(baseFavoriteCategories);
+  }, [baseFavoriteCategories, branchId]);
+
+  const handleFavoriteDragStart = useCallback(
+    (event: DragEvent<HTMLElement>, categoryId: string) => {
+      if (!isFavoriteDragEnabled) {
+        return;
+      }
+
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", categoryId);
+      setDraggedFavoriteCategoryId(categoryId);
+      setFavoriteDropCategoryId(categoryId);
+    },
+    [isFavoriteDragEnabled],
+  );
+
+  const handleFavoriteDragOver = useCallback(
+    (event: DragEvent<HTMLElement>, categoryId: string) => {
+      if (!isFavoriteDragEnabled || !draggedFavoriteCategoryId) {
+        return;
+      }
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      if (favoriteDropCategoryId !== categoryId) {
+        setFavoriteDropCategoryId(categoryId);
+      }
+    },
+    [draggedFavoriteCategoryId, favoriteDropCategoryId, isFavoriteDragEnabled],
+  );
+
+  const handleFavoriteDrop = useCallback(
+    (event: DragEvent<HTMLElement>, targetCategoryId: string) => {
+      if (!isFavoriteDragEnabled || !draggedFavoriteCategoryId) {
+        return;
+      }
+
+      event.preventDefault();
+      setFavoriteCategories((current) => {
+        const next = reorderFavoriteCategories(
+          current,
+          draggedFavoriteCategoryId,
+          targetCategoryId,
+        );
+        if (next !== current && branchId) {
+          writeFavoriteOrder(
+            branchId,
+            next.map((category) => category.id),
+          );
+        }
+        return next;
+      });
+      setDraggedFavoriteCategoryId("");
+      setFavoriteDropCategoryId("");
+    },
+    [branchId, draggedFavoriteCategoryId, isFavoriteDragEnabled],
+  );
+
+  const handleFavoriteDragEnd = useCallback(() => {
+    setDraggedFavoriteCategoryId("");
+    setFavoriteDropCategoryId("");
+  }, []);
 
   return (
     <main className={styles.page}>
@@ -775,29 +977,77 @@ export default function HomePageClient({
           </section>
         ) : null}
 
-        {canRenderMenu && (homeData?.favoriteCategories ?? []).length > 0 ? (
+        {canRenderMenu && favoriteCategories.length > 0 ? (
           <section className={styles.favoriteWrap}>
-            <div className={styles.favoriteGrid}>
-              {(homeData?.favoriteCategories ?? []).map((category) => (
-                <Link
-                  key={category.id}
-                  href={productHref(category.id, category.name, "home")}
-                  className={styles.favoriteCard}
-                  onMouseEnter={() => warmCategory(category.id, category.name)}
-                  onFocus={() => warmCategory(category.id, category.name)}
-                  onTouchStart={() => warmCategory(category.id, category.name)}
+            {initialIsAdmin ? (
+              <div className={styles.favoriteAdminBar}>
+                <span className={styles.favoriteAdminHint}>
+                  Admin mode: drag cards to change favorite order.
+                </span>
+                <button
+                  type="button"
+                  className={styles.favoriteResetButton}
+                  onClick={resetFavoriteCategoryOrder}
                 >
-                  <div
-                    className={styles.favoriteCardMedia}
-                    style={{
-                      backgroundImage: categoryImages[category.name]
-                        ? `linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08)), url("${categoryImages[category.name]}")`
-                        : undefined,
-                    }}
-                  />
-                  <div className={styles.favoriteCardLabel}>{category.name}</div>
-                </Link>
-              ))}
+                  Reset
+                </button>
+              </div>
+            ) : null}
+            <div className={styles.favoriteGrid}>
+              {favoriteCategories.map((category) =>
+                initialIsAdmin ? (
+                  <article
+                    key={category.id}
+                    className={`${styles.favoriteCard} ${
+                      isFavoriteDragEnabled ? styles.favoriteCardDraggable : ""
+                    } ${
+                      draggedFavoriteCategoryId === category.id
+                        ? styles.favoriteCardDragging
+                        : ""
+                    } ${
+                      favoriteDropCategoryId === category.id &&
+                      draggedFavoriteCategoryId !== category.id
+                        ? styles.favoriteCardDropTarget
+                        : ""
+                    }`}
+                    draggable={isFavoriteDragEnabled}
+                    onDragStart={(event) => handleFavoriteDragStart(event, category.id)}
+                    onDragOver={(event) => handleFavoriteDragOver(event, category.id)}
+                    onDrop={(event) => handleFavoriteDrop(event, category.id)}
+                    onDragEnd={handleFavoriteDragEnd}
+                  >
+                    <div
+                      className={styles.favoriteCardMedia}
+                      style={{
+                        backgroundImage: categoryImages[category.name]
+                          ? `linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08)), url("${categoryImages[category.name]}")`
+                          : undefined,
+                      }}
+                    />
+                    <div className={styles.favoriteCardLabel}>{category.name}</div>
+                    <span className={styles.favoriteDragTag}>Drag</span>
+                  </article>
+                ) : (
+                  <Link
+                    key={category.id}
+                    href={productHref(category.id, category.name, "home")}
+                    className={styles.favoriteCard}
+                    onMouseEnter={() => warmCategory(category.id, category.name)}
+                    onFocus={() => warmCategory(category.id, category.name)}
+                    onTouchStart={() => warmCategory(category.id, category.name)}
+                  >
+                    <div
+                      className={styles.favoriteCardMedia}
+                      style={{
+                        backgroundImage: categoryImages[category.name]
+                          ? `linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08)), url("${categoryImages[category.name]}")`
+                          : undefined,
+                      }}
+                    />
+                    <div className={styles.favoriteCardLabel}>{category.name}</div>
+                  </Link>
+                ),
+              )}
             </div>
           </section>
         ) : null}
