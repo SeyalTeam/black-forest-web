@@ -57,6 +57,10 @@ function extractRefId(value: unknown): string {
   return "";
 }
 
+function looksLikeObjectId(value: string) {
+  return /^[a-f0-9]{24}$/i.test(value.trim());
+}
+
 function ruleMatchesBranch(branchesNode: unknown, branchId: string) {
   const normalizedBranchId = branchId.trim();
   if (!normalizedBranchId) return false;
@@ -198,6 +202,14 @@ export async function POST(request: NextRequest) {
     }
 
     const settings = (await settingsResponse.json()) as DynamicMap;
+    const settingsId = toTrimmedText(settings.id);
+    if (!looksLikeObjectId(settingsId)) {
+      return Response.json(
+        { message: "Failed to read widget settings id." },
+        { status: 500 },
+      );
+    }
+
     const rules = toArray(settings.favoriteCategoriesByBranchRules);
     if (rules.length === 0) {
       return Response.json({ ok: true, updated: false, message: "No favorite rules found" });
@@ -257,7 +269,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const updateResponse = await fetch(`${API_BASE}/globals/widget-settings?depth=0`, {
+    const updateResponse = await fetch(
+      `${API_BASE}/globals/widget-settings/${settingsId}?depth=0`,
+      {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${apiToken}`,
@@ -267,7 +281,8 @@ export async function POST(request: NextRequest) {
         favoriteCategoriesByBranchRules: updatedRules,
       }),
       cache: "no-store",
-    });
+      },
+    );
 
     if (!updateResponse.ok) {
       const message = await readResponseMessage(updateResponse);
