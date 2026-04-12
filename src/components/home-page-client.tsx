@@ -44,6 +44,7 @@ const HOME_CACHE_KEY_PREFIX = "blackforest-order-web-home-data-v4:";
 const HOME_CACHE_TTL_MS = 10 * 1000;
 const HOME_REFRESH_INTERVAL_MS = 5_000;
 const FAVORITE_ORDER_KEY_PREFIX = "blackforest-order-web-favorite-categories-order-v1:";
+const ADMIN_TOKEN_STORAGE_KEY = "blackforest-order-web-admin-token-v1";
 
 function readFavoriteOrder(branchId: string): string[] {
   if (typeof window === "undefined" || !branchId.trim()) {
@@ -86,6 +87,23 @@ function clearFavoriteOrder(branchId: string) {
   }
 
   window.localStorage.removeItem(`${FAVORITE_ORDER_KEY_PREFIX}${branchId}`);
+}
+
+function readStoredAdminToken() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  return window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)?.trim() ?? "";
+}
+
+function writeStoredAdminToken(token: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const normalized = token.trim();
+  if (!normalized) return;
+  window.localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, normalized);
 }
 
 function applyFavoriteOrder(categories: CategoryCard[], order: string[]) {
@@ -248,6 +266,21 @@ async function fetchHomeDataForBranch(targetBranchId: string) {
   return (await response.json()) as HomePageData;
 }
 
+async function readResponseMessage(response: Response) {
+  try {
+    const decoded = (await response.json()) as {
+      message?: string;
+    };
+    if (decoded.message?.trim()) {
+      return decoded.message.trim();
+    }
+  } catch {
+    // Ignore and use fallback below.
+  }
+
+  return `Request failed with ${response.status}`;
+}
+
 type HomePageClientProps = {
   initialHomeData: HomePageData | null;
   initialBranchId: string | null;
@@ -285,13 +318,28 @@ export default function HomePageClient({
   );
   const [draggedFavoriteCategoryId, setDraggedFavoriteCategoryId] = useState("");
   const [favoriteDropCategoryId, setFavoriteDropCategoryId] = useState("");
+  const [favoriteSaveState, setFavoriteSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [favoriteSaveMessage, setFavoriteSaveMessage] = useState("");
 
   useEffect(() => {
-    if (typeof document === "undefined" || !initialIsAdmin) {
+    if (
+      typeof document === "undefined" ||
+      typeof window === "undefined" ||
+      !initialIsAdmin
+    ) {
       return;
     }
 
     document.cookie = `${COOKIE_ADMIN_AUTH_KEY}=1; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+
+    const adminToken = new URLSearchParams(window.location.search)
+      .get("adminToken")
+      ?.trim();
+    if (adminToken) {
+      writeStoredAdminToken(adminToken);
+    }
   }, [initialIsAdmin]);
 
   useEffect(() => {
@@ -652,6 +700,60 @@ export default function HomePageClient({
   }, [branchId, requestedBranchId, router]);
   const isFavoriteDragEnabled =
     initialIsAdmin && canRenderMenu && favoriteCategories.length > 1;
+  const persistFavoriteOrderForCustomers = useCallback(
+    async (orderedCategoryIds: string[]) => {
+      if (!branchId || !initialIsAdmin) {
+        return;
+      }
+
+      const adminToken = readStoredAdminToken();
+      if (!adminToken) {
+        setFavoriteSaveState("error");
+        setFavoriteSaveMessage("Open the admin-token URL once before saving.");
+        return;
+      }
+
+      setFavoriteSaveState("saving");
+      setFavoriteSaveMessage("Saving for customers...");
+
+      try {
+        const response = await fetch("/api/favorite-categories-order", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            branchId,
+            orderedCategoryIds,
+            adminToken,
+          }),
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          const message = await readResponseMessage(response);
+          throw new Error(message);
+        }
+
+        const payload = (await response.json()) as {
+          updated?: boolean;
+          message?: string;
+        };
+        setFavoriteSaveState("saved");
+        setFavoriteSaveMessage(
+          payload.updated === false
+            ? payload.message || "Already saved."
+            : "Saved for customer view.",
+        );
+      } catch (error) {
+        setFavoriteSaveState("error");
+        setFavoriteSaveMessage(
+          error instanceof Error ? error.message : "Failed to save customer order.",
+        );
+      }
+    },
+    [branchId, initialIsAdmin],
+  );
 
   const resetFavoriteCategoryOrder = useCallback(() => {
     if (!branchId) {
@@ -660,6 +762,8 @@ export default function HomePageClient({
 
     clearFavoriteOrder(branchId);
     setFavoriteCategories(baseFavoriteCategories);
+    setFavoriteSaveState("idle");
+    setFavoriteSaveMessage("");
   }, [baseFavoriteCategories, branchId]);
 
   const handleFavoriteDragStart = useCallback(
@@ -698,6 +802,8 @@ export default function HomePageClient({
       }
 
       event.preventDefault();
+      let didReorder = false;
+      let orderedCategoryIds: string[] = [];
       setFavoriteCategories((current) => {
         const next = reorderFavoriteCategories(
           current,
@@ -705,17 +811,27 @@ export default function HomePageClient({
           targetCategoryId,
         );
         if (next !== current && branchId) {
+          didReorder = true;
+          orderedCategoryIds = next.map((category) => category.id);
           writeFavoriteOrder(
             branchId,
-            next.map((category) => category.id),
+            orderedCategoryIds,
           );
         }
         return next;
       });
+      if (didReorder && orderedCategoryIds.length > 0) {
+        void persistFavoriteOrderForCustomers(orderedCategoryIds);
+      }
       setDraggedFavoriteCategoryId("");
       setFavoriteDropCategoryId("");
     },
-    [branchId, draggedFavoriteCategoryId, isFavoriteDragEnabled],
+    [
+      branchId,
+      draggedFavoriteCategoryId,
+      isFavoriteDragEnabled,
+      persistFavoriteOrderForCustomers,
+    ],
   );
 
   const handleFavoriteDragEnd = useCallback(() => {
@@ -981,9 +1097,24 @@ export default function HomePageClient({
           <section className={styles.favoriteWrap}>
             {initialIsAdmin ? (
               <div className={styles.favoriteAdminBar}>
-                <span className={styles.favoriteAdminHint}>
-                  Admin mode: drag cards to change favorite order.
-                </span>
+                <div className={styles.favoriteAdminMeta}>
+                  <span className={styles.favoriteAdminHint}>
+                    Admin mode: drag cards to change favorite order.
+                  </span>
+                  {favoriteSaveState !== "idle" ? (
+                    <span
+                      className={
+                        favoriteSaveState === "error"
+                          ? styles.favoriteAdminStatusError
+                          : favoriteSaveState === "saving"
+                            ? styles.favoriteAdminStatusSaving
+                            : styles.favoriteAdminStatus
+                      }
+                    >
+                      {favoriteSaveMessage}
+                    </span>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   className={styles.favoriteResetButton}
