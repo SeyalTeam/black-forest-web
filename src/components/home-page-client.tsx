@@ -44,7 +44,14 @@ const HOME_CACHE_KEY_PREFIX = "blackforest-order-web-home-data-v4:";
 const HOME_CACHE_TTL_MS = 10 * 1000;
 const HOME_REFRESH_INTERVAL_MS = 5_000;
 const FAVORITE_ORDER_KEY_PREFIX = "blackforest-order-web-favorite-categories-order-v1:";
+const FAVORITE_PRODUCT_ORDER_KEY_PREFIX =
+  "blackforest-order-web-favorite-products-order-v1:";
 const ADMIN_TOKEN_STORAGE_KEY = "blackforest-order-web-admin-token-v1";
+
+type FavoriteProductCard = {
+  key: string;
+  product: Product;
+};
 
 function readFavoriteOrder(branchId: string): string[] {
   if (typeof window === "undefined" || !branchId.trim()) {
@@ -87,6 +94,49 @@ function clearFavoriteOrder(branchId: string) {
   }
 
   window.localStorage.removeItem(`${FAVORITE_ORDER_KEY_PREFIX}${branchId}`);
+}
+
+function readFavoriteProductOrder(branchId: string): string[] {
+  if (typeof window === "undefined" || !branchId.trim()) {
+    return [];
+  }
+
+  const raw = window.localStorage.getItem(`${FAVORITE_PRODUCT_ORDER_KEY_PREFIX}${branchId}`);
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => item.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function writeFavoriteProductOrder(branchId: string, productIds: string[]) {
+  if (typeof window === "undefined" || !branchId.trim()) {
+    return;
+  }
+
+  window.localStorage.setItem(
+    `${FAVORITE_PRODUCT_ORDER_KEY_PREFIX}${branchId}`,
+    JSON.stringify(productIds),
+  );
+}
+
+function clearFavoriteProductOrder(branchId: string) {
+  if (typeof window === "undefined" || !branchId.trim()) {
+    return;
+  }
+
+  window.localStorage.removeItem(`${FAVORITE_PRODUCT_ORDER_KEY_PREFIX}${branchId}`);
 }
 
 function readStoredAdminToken() {
@@ -147,6 +197,50 @@ function reorderFavoriteCategories(
   const next = [...categories];
   const [draggedCategory] = next.splice(draggedIndex, 1);
   next.splice(targetIndex, 0, draggedCategory);
+  return next;
+}
+
+function applyFavoriteProductOrder(products: FavoriteProductCard[], order: string[]) {
+  if (products.length <= 1 || order.length === 0) {
+    return products;
+  }
+
+  const rank = new Map<string, number>();
+  order.forEach((productId, index) => {
+    if (!rank.has(productId)) {
+      rank.set(productId, index);
+    }
+  });
+
+  return [...products].sort((left, right) => {
+    const leftRank = rank.get(left.product.id);
+    const rightRank = rank.get(right.product.id);
+
+    if (leftRank === undefined && rightRank === undefined) return 0;
+    if (leftRank === undefined) return 1;
+    if (rightRank === undefined) return -1;
+    return leftRank - rightRank;
+  });
+}
+
+function reorderFavoriteProducts(
+  products: FavoriteProductCard[],
+  draggedKey: string,
+  targetKey: string,
+) {
+  if (!draggedKey || !targetKey || draggedKey === targetKey) {
+    return products;
+  }
+
+  const draggedIndex = products.findIndex((item) => item.key === draggedKey);
+  const targetIndex = products.findIndex((item) => item.key === targetKey);
+  if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) {
+    return products;
+  }
+
+  const next = [...products];
+  const [draggedProduct] = next.splice(draggedIndex, 1);
+  next.splice(targetIndex, 0, draggedProduct);
   return next;
 }
 
@@ -313,6 +407,20 @@ export default function HomePageClient({
     initialRequestedTableSection,
   );
   const [activeOfferIndex, setActiveOfferIndex] = useState(0);
+  const [favoriteProducts, setFavoriteProducts] = useState<FavoriteProductCard[]>(() =>
+    (initialHomeData?.ruleSections ?? []).flatMap((section, sectionIndex) =>
+      section.products.map((product, productIndex) => ({
+        key: `${sectionIndex}-${productIndex}-${product.id}`,
+        product,
+      })),
+    ),
+  );
+  const [draggedFavoriteProductKey, setDraggedFavoriteProductKey] = useState("");
+  const [favoriteProductDropKey, setFavoriteProductDropKey] = useState("");
+  const [favoriteProductSaveState, setFavoriteProductSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [favoriteProductSaveMessage, setFavoriteProductSaveMessage] = useState("");
   const [favoriteCategories, setFavoriteCategories] = useState<CategoryCard[]>(
     initialHomeData?.favoriteCategories ?? [],
   );
@@ -525,7 +633,7 @@ export default function HomePageClient({
     () => homeData?.ruleSections ?? [],
     [homeData?.ruleSections],
   );
-  const orderedProducts = useMemo(
+  const baseFavoriteProducts = useMemo<FavoriteProductCard[]>(
     () =>
       orderedSections.flatMap((section, sectionIndex) =>
         section.products.map((product, productIndex) => ({
@@ -547,6 +655,21 @@ export default function HomePageClient({
     () => homeData?.favoriteCategories ?? [],
     [homeData?.favoriteCategories],
   );
+
+  useEffect(() => {
+    if (!branchId) {
+      setFavoriteProducts(baseFavoriteProducts);
+      return;
+    }
+
+    const favoriteProductOrder = readFavoriteProductOrder(branchId);
+    if (favoriteProductOrder.length === 0) {
+      setFavoriteProducts(baseFavoriteProducts);
+      return;
+    }
+
+    setFavoriteProducts(applyFavoriteProductOrder(baseFavoriteProducts, favoriteProductOrder));
+  }, [baseFavoriteProducts, branchId]);
 
   useEffect(() => {
     if (!branchId) {
@@ -698,8 +821,64 @@ export default function HomePageClient({
       categoryName,
     });
   }, [branchId, requestedBranchId, router]);
-  const isFavoriteDragEnabled =
+  const isFavoriteProductDragEnabled =
+    initialIsAdmin && canRenderMenu && favoriteProducts.length > 1;
+  const isFavoriteCategoryDragEnabled =
     initialIsAdmin && canRenderMenu && favoriteCategories.length > 1;
+  const persistFavoriteProductOrderForCustomers = useCallback(
+    async (orderedProductIds: string[]) => {
+      if (!branchId || !initialIsAdmin) {
+        return;
+      }
+
+      const adminToken = readStoredAdminToken();
+      if (!adminToken) {
+        setFavoriteProductSaveState("error");
+        setFavoriteProductSaveMessage("Open the admin-token URL once before saving.");
+        return;
+      }
+
+      setFavoriteProductSaveState("saving");
+      setFavoriteProductSaveMessage("Saving for customers...");
+
+      try {
+        const response = await fetch("/api/favorite-products-order", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            branchId,
+            orderedProductIds,
+            adminToken,
+          }),
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          const message = await readResponseMessage(response);
+          throw new Error(message);
+        }
+
+        const payload = (await response.json()) as {
+          updated?: boolean;
+          message?: string;
+        };
+        setFavoriteProductSaveState("saved");
+        setFavoriteProductSaveMessage(
+          payload.updated === false
+            ? payload.message || "Already saved."
+            : "Saved for customer view.",
+        );
+      } catch (error) {
+        setFavoriteProductSaveState("error");
+        setFavoriteProductSaveMessage(
+          error instanceof Error ? error.message : "Failed to save customer order.",
+        );
+      }
+    },
+    [branchId, initialIsAdmin],
+  );
   const persistFavoriteOrderForCustomers = useCallback(
     async (orderedCategoryIds: string[]) => {
       if (!branchId || !initialIsAdmin) {
@@ -755,6 +934,98 @@ export default function HomePageClient({
     [branchId, initialIsAdmin],
   );
 
+  const handleFavoriteProductDragStart = useCallback(
+    (event: DragEvent<HTMLElement>, productKey: string) => {
+      if (!isFavoriteProductDragEnabled) {
+        return;
+      }
+
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", productKey);
+      setDraggedFavoriteProductKey(productKey);
+      setFavoriteProductDropKey(productKey);
+    },
+    [isFavoriteProductDragEnabled],
+  );
+
+  const handleFavoriteProductDragOver = useCallback(
+    (event: DragEvent<HTMLElement>, productKey: string) => {
+      if (!isFavoriteProductDragEnabled || !draggedFavoriteProductKey) {
+        return;
+      }
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      if (favoriteProductDropKey !== productKey) {
+        setFavoriteProductDropKey(productKey);
+      }
+    },
+    [draggedFavoriteProductKey, favoriteProductDropKey, isFavoriteProductDragEnabled],
+  );
+
+  const handleFavoriteProductDrop = useCallback(
+    (event: DragEvent<HTMLElement>, targetProductKey: string) => {
+      if (!isFavoriteProductDragEnabled || !draggedFavoriteProductKey) {
+        return;
+      }
+
+      event.preventDefault();
+      let didReorder = false;
+      let orderedProductIds: string[] = [];
+      setFavoriteProducts((current) => {
+        const next = reorderFavoriteProducts(
+          current,
+          draggedFavoriteProductKey,
+          targetProductKey,
+        );
+        if (next !== current && branchId) {
+          didReorder = true;
+          orderedProductIds = next.map((item) => item.product.id);
+          writeFavoriteProductOrder(branchId, orderedProductIds);
+        }
+        return next;
+      });
+
+      if (didReorder && orderedProductIds.length > 0) {
+        void persistFavoriteProductOrderForCustomers(orderedProductIds);
+      }
+
+      setDraggedFavoriteProductKey("");
+      setFavoriteProductDropKey("");
+    },
+    [
+      branchId,
+      draggedFavoriteProductKey,
+      isFavoriteProductDragEnabled,
+      persistFavoriteProductOrderForCustomers,
+    ],
+  );
+
+  const handleFavoriteProductDragEnd = useCallback(() => {
+    setDraggedFavoriteProductKey("");
+    setFavoriteProductDropKey("");
+  }, []);
+
+  const resetFavoriteProductOrder = useCallback(() => {
+    if (!branchId) {
+      return;
+    }
+
+    clearFavoriteProductOrder(branchId);
+    setFavoriteProducts(baseFavoriteProducts);
+    setFavoriteProductSaveState("idle");
+    setFavoriteProductSaveMessage("");
+    if (baseFavoriteProducts.length > 0) {
+      void persistFavoriteProductOrderForCustomers(
+        baseFavoriteProducts.map((item) => item.product.id),
+      );
+    }
+  }, [
+    baseFavoriteProducts,
+    branchId,
+    persistFavoriteProductOrderForCustomers,
+  ]);
+
   const resetFavoriteCategoryOrder = useCallback(() => {
     if (!branchId) {
       return;
@@ -768,7 +1039,7 @@ export default function HomePageClient({
 
   const handleFavoriteDragStart = useCallback(
     (event: DragEvent<HTMLElement>, categoryId: string) => {
-      if (!isFavoriteDragEnabled) {
+      if (!isFavoriteCategoryDragEnabled) {
         return;
       }
 
@@ -777,12 +1048,12 @@ export default function HomePageClient({
       setDraggedFavoriteCategoryId(categoryId);
       setFavoriteDropCategoryId(categoryId);
     },
-    [isFavoriteDragEnabled],
+    [isFavoriteCategoryDragEnabled],
   );
 
   const handleFavoriteDragOver = useCallback(
     (event: DragEvent<HTMLElement>, categoryId: string) => {
-      if (!isFavoriteDragEnabled || !draggedFavoriteCategoryId) {
+      if (!isFavoriteCategoryDragEnabled || !draggedFavoriteCategoryId) {
         return;
       }
 
@@ -792,12 +1063,12 @@ export default function HomePageClient({
         setFavoriteDropCategoryId(categoryId);
       }
     },
-    [draggedFavoriteCategoryId, favoriteDropCategoryId, isFavoriteDragEnabled],
+    [draggedFavoriteCategoryId, favoriteDropCategoryId, isFavoriteCategoryDragEnabled],
   );
 
   const handleFavoriteDrop = useCallback(
     (event: DragEvent<HTMLElement>, targetCategoryId: string) => {
-      if (!isFavoriteDragEnabled || !draggedFavoriteCategoryId) {
+      if (!isFavoriteCategoryDragEnabled || !draggedFavoriteCategoryId) {
         return;
       }
 
@@ -829,7 +1100,7 @@ export default function HomePageClient({
     [
       branchId,
       draggedFavoriteCategoryId,
-      isFavoriteDragEnabled,
+      isFavoriteCategoryDragEnabled,
       persistFavoriteOrderForCustomers,
     ],
   );
@@ -1025,21 +1296,66 @@ export default function HomePageClient({
           </section>
         ) : null}
 
-        {canRenderMenu && !isLoading && !errorMessage && homeData && orderedProducts.length === 0 ? (
+        {canRenderMenu && !isLoading && !errorMessage && homeData && favoriteProducts.length === 0 ? (
           <section className={styles.sectionBlock}>
             <div className={styles.statusCard}>No recommended products available for this branch.</div>
           </section>
         ) : null}
 
-        {canRenderMenu && !errorMessage && orderedProducts.length > 0 ? (
+        {canRenderMenu && !errorMessage && favoriteProducts.length > 0 ? (
           <section className={styles.sectionBlock}>
+            {initialIsAdmin ? (
+              <div className={styles.favoriteAdminBar}>
+                <div className={styles.favoriteAdminMeta}>
+                  <span className={styles.favoriteAdminHint}>
+                    Admin mode: drag cards to change favorite product order.
+                  </span>
+                  {favoriteProductSaveState !== "idle" ? (
+                    <span
+                      className={
+                        favoriteProductSaveState === "error"
+                          ? styles.favoriteAdminStatusError
+                          : favoriteProductSaveState === "saving"
+                            ? styles.favoriteAdminStatusSaving
+                            : styles.favoriteAdminStatus
+                      }
+                    >
+                      {favoriteProductSaveMessage}
+                    </span>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className={styles.favoriteResetButton}
+                  onClick={resetFavoriteProductOrder}
+                >
+                  Reset
+                </button>
+              </div>
+            ) : null}
             <div className={styles.sectionGrid}>
-              {orderedProducts.map(({ key, product }) => {
+              {favoriteProducts.map(({ key, product }) => {
                 const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
                 const isOutOfStock = product.isOutOfStock;
 
                 return (
-                  <article key={key} className={styles.productCard}>
+                  <article
+                    key={key}
+                    className={`${styles.productCard} ${
+                      isFavoriteProductDragEnabled ? styles.productCardDraggable : ""
+                    } ${
+                      draggedFavoriteProductKey === key ? styles.productCardDragging : ""
+                    } ${
+                      favoriteProductDropKey === key && draggedFavoriteProductKey !== key
+                        ? styles.productCardDropTarget
+                        : ""
+                    }`}
+                    draggable={isFavoriteProductDragEnabled}
+                    onDragStart={(event) => handleFavoriteProductDragStart(event, key)}
+                    onDragOver={(event) => handleFavoriteProductDragOver(event, key)}
+                    onDrop={(event) => handleFavoriteProductDrop(event, key)}
+                    onDragEnd={handleFavoriteProductDragEnd}
+                  >
                     <div className={styles.productArt}>
                       <div
                         className={`${styles.productArtBackground} ${
@@ -1130,7 +1446,7 @@ export default function HomePageClient({
                   <article
                     key={category.id}
                     className={`${styles.favoriteCard} ${
-                      isFavoriteDragEnabled ? styles.favoriteCardDraggable : ""
+                      isFavoriteCategoryDragEnabled ? styles.favoriteCardDraggable : ""
                     } ${
                       draggedFavoriteCategoryId === category.id
                         ? styles.favoriteCardDragging
@@ -1141,7 +1457,7 @@ export default function HomePageClient({
                         ? styles.favoriteCardDropTarget
                         : ""
                     }`}
-                    draggable={isFavoriteDragEnabled}
+                    draggable={isFavoriteCategoryDragEnabled}
                     onDragStart={(event) => handleFavoriteDragStart(event, category.id)}
                     onDragOver={(event) => handleFavoriteDragOver(event, category.id)}
                     onDrop={(event) => handleFavoriteDrop(event, category.id)}

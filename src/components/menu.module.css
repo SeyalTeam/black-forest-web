@@ -524,6 +524,25 @@
   gap: 12px;
 }
 
+.productCardDraggable {
+  cursor: grab;
+  user-select: none;
+}
+
+.productCardDraggable:active {
+  cursor: grabbing;
+}
+
+.productCardDragging {
+  opacity: 0.55;
+}
+
+.productCardDropTarget {
+  outline: 3px dashed rgba(39, 129, 84, 0.72);
+  outline-offset: 4px;
+  border-radius: 14px;
+}
+
 .productArt {
   position: relative;
   overflow: hidden;
