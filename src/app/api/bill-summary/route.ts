@@ -38,11 +38,21 @@ function readText(...values: unknown[]) {
 }
 
 function toPreparationMinutes(value: unknown) {
-  const minutes = toFiniteNumber(value);
-  if (!Number.isFinite(minutes) || minutes <= 0) {
+  if (typeof value === "number") {
+    if (Number.isInteger(value) && value >= 0) {
+      return value;
+    }
     return null;
   }
-  return minutes;
+
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (/^\d+$/.test(normalized)) {
+      return Number.parseInt(normalized, 10);
+    }
+  }
+
+  return null;
 }
 
 function normalizeStatus(value: unknown) {
@@ -88,7 +98,10 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
         item.updatedAt,
       );
       const preparationTime = toPreparationMinutes(
-        item.preparationTime ?? product?.preparationTime,
+        item.preparingTime ??
+          item.preparationTime ??
+          product?.preparingTime ??
+          product?.preparationTime,
       );
 
       return {

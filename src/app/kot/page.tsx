@@ -199,7 +199,7 @@ function computePreparationRemainingSeconds(
   billCreatedAt: string,
   nowMs: number,
 ) {
-  if (!item.preparationTime || item.preparationTime <= 0) {
+  if (item.preparationTime === null || item.preparationTime < 0) {
     return null;
   }
 
