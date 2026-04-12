@@ -210,9 +210,13 @@ function computePreparationRemainingSeconds(
   }
 
   const elapsedSeconds = Math.max(0, Math.floor((nowMs - orderedTimestamp) / 1000));
+  const startDelaySeconds =
+    item.preparationTimeSource === "billing-item"
+      ? 0
+      : PREPARATION_TIMER_START_DELAY_SECONDS;
   const elapsedAfterDelay = Math.max(
     0,
-    elapsedSeconds - PREPARATION_TIMER_START_DELAY_SECONDS,
+    elapsedSeconds - startDelaySeconds,
   );
   return Math.max(0, preparationSeconds - elapsedAfterDelay);
 }

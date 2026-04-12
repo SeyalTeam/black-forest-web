@@ -55,6 +55,48 @@ function toPreparationMinutes(value: unknown) {
   return null;
 }
 
+function resolvePreparationMinutes(
+  item: Record<string, unknown>,
+  product: Record<string, unknown> | null,
+) {
+  const itemPreparingTime = toPreparationMinutes(item.preparingTime);
+  if (itemPreparingTime !== null) {
+    return {
+      minutes: itemPreparingTime,
+      source: "billing-item" as const,
+    };
+  }
+
+  const itemPreparationTime = toPreparationMinutes(item.preparationTime);
+  if (itemPreparationTime !== null) {
+    return {
+      minutes: itemPreparationTime,
+      source: "billing-item" as const,
+    };
+  }
+
+  const productPreparingTime = toPreparationMinutes(product?.preparingTime);
+  if (productPreparingTime !== null) {
+    return {
+      minutes: productPreparingTime,
+      source: "product-default" as const,
+    };
+  }
+
+  const productPreparationTime = toPreparationMinutes(product?.preparationTime);
+  if (productPreparationTime !== null) {
+    return {
+      minutes: productPreparationTime,
+      source: "product-default" as const,
+    };
+  }
+
+  return {
+    minutes: null,
+    source: "none" as const,
+  };
+}
+
 function normalizeStatus(value: unknown) {
   const normalized = toTrimmedText(value).toLowerCase();
   return normalized || "ordered";
@@ -97,12 +139,7 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
         item.preparedTime,
         item.updatedAt,
       );
-      const preparationTime = toPreparationMinutes(
-        item.preparingTime ??
-          item.preparationTime ??
-          product?.preparingTime ??
-          product?.preparationTime,
-      );
+      const preparationTimeInfo = resolvePreparationMinutes(item, product);
 
       return {
         id: toTrimmedText(item.id) || toTrimmedText(product?.id) || crypto.randomUUID(),
@@ -111,7 +148,8 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
         subtotal: toFiniteNumber(item.subtotal),
         status,
         isVeg: toBoolean(product?.isVeg),
-        preparationTime,
+        preparationTime: preparationTimeInfo.minutes,
+        preparationTimeSource: preparationTimeInfo.source,
         orderedAt,
         preparedAt,
       } satisfies BillSummaryItem;
