@@ -791,7 +791,7 @@ export default function HomePageClient({
   const persistFavoriteProductOrderForCustomers = useCallback(
     async (orderedProductIds: string[]) => {
       if (!branchId || !initialIsAdmin) {
-        return;
+        return false;
       }
 
       setFavoriteProductSaveState("saving");
@@ -830,11 +830,13 @@ export default function HomePageClient({
             ? responsePayload.message || "Already saved."
             : "Saved for customer view.",
         );
+        return true;
       } catch (error) {
         setFavoriteProductSaveState("error");
         setFavoriteProductSaveMessage(
           error instanceof Error ? error.message : "Failed to save customer order.",
         );
+        return false;
       }
     },
     [branchId, initialIsAdmin],
@@ -842,7 +844,7 @@ export default function HomePageClient({
   const persistFavoriteOrderForCustomers = useCallback(
     async (orderedCategoryIds: string[]) => {
       if (!branchId || !initialIsAdmin) {
-        return;
+        return false;
       }
 
       setFavoriteSaveState("saving");
@@ -881,11 +883,13 @@ export default function HomePageClient({
             ? responsePayload.message || "Already saved."
             : "Saved for customer view.",
         );
+        return true;
       } catch (error) {
         setFavoriteSaveState("error");
         setFavoriteSaveMessage(
           error instanceof Error ? error.message : "Failed to save customer order.",
         );
+        return false;
       }
     },
     [branchId, initialIsAdmin],
@@ -929,6 +933,7 @@ export default function HomePageClient({
       event.preventDefault();
       let didReorder = false;
       let orderedProductIds: string[] = [];
+      let previousProductsSnapshot: FavoriteProductCard[] = [];
       setFavoriteProducts((current) => {
         const next = reorderFavoriteProducts(
           current,
@@ -937,14 +942,27 @@ export default function HomePageClient({
         );
         if (next !== current && branchId) {
           didReorder = true;
+          previousProductsSnapshot = [...current];
           orderedProductIds = next.map((item) => item.product.id);
           writeFavoriteProductOrder(branchId, orderedProductIds);
         }
         return next;
       });
 
-      if (didReorder && orderedProductIds.length > 0) {
-        void persistFavoriteProductOrderForCustomers(orderedProductIds);
+      if (didReorder && orderedProductIds.length > 0 && branchId) {
+        const previousProductIds = previousProductsSnapshot.map((item) => item.product.id);
+        void persistFavoriteProductOrderForCustomers(orderedProductIds).then((saved) => {
+          if (saved) {
+            return;
+          }
+
+          setFavoriteProducts(previousProductsSnapshot);
+          if (previousProductIds.length > 0) {
+            writeFavoriteProductOrder(branchId, previousProductIds);
+          } else {
+            clearFavoriteProductOrder(branchId);
+          }
+        });
       }
 
       setDraggedFavoriteProductKey("");
@@ -1032,6 +1050,7 @@ export default function HomePageClient({
       event.preventDefault();
       let didReorder = false;
       let orderedCategoryIds: string[] = [];
+      let previousCategorySnapshot: CategoryCard[] = [];
       setFavoriteCategories((current) => {
         const next = reorderFavoriteCategories(
           current,
@@ -1040,6 +1059,7 @@ export default function HomePageClient({
         );
         if (next !== current && branchId) {
           didReorder = true;
+          previousCategorySnapshot = [...current];
           orderedCategoryIds = next.map((category) => category.id);
           writeFavoriteOrder(
             branchId,
@@ -1048,8 +1068,20 @@ export default function HomePageClient({
         }
         return next;
       });
-      if (didReorder && orderedCategoryIds.length > 0) {
-        void persistFavoriteOrderForCustomers(orderedCategoryIds);
+      if (didReorder && orderedCategoryIds.length > 0 && branchId) {
+        const previousCategoryIds = previousCategorySnapshot.map((category) => category.id);
+        void persistFavoriteOrderForCustomers(orderedCategoryIds).then((saved) => {
+          if (saved) {
+            return;
+          }
+
+          setFavoriteCategories(previousCategorySnapshot);
+          if (previousCategoryIds.length > 0) {
+            writeFavoriteOrder(branchId, previousCategoryIds);
+          } else {
+            clearFavoriteOrder(branchId);
+          }
+        });
       }
       setDraggedFavoriteCategoryId("");
       setFavoriteDropCategoryId("");
