@@ -1100,17 +1100,19 @@ export default function KotPage() {
                         <VegIcon isVeg={item.isVeg} />
                         <div className={styles.previousItemMeta}>
                           <h3>{item.name}</h3>
-                          <div className={styles.statusPill}>{titleCase(item.status)}</div>
-                          {showPreparationTimer ? (
-                            <div className={styles.preparationTimer}>
-                              <span className={styles.preparationTimerTitle}>
-                                Preparation Time
-                              </span>
-                              <span className={styles.preparationTimerValue}>
-                                {formatDurationClock(preparationSeconds ?? 0)}
-                              </span>
-                            </div>
-                          ) : null}
+                          <div className={styles.statusMetaRow}>
+                            <div className={styles.statusPill}>{titleCase(item.status)}</div>
+                            {showPreparationTimer ? (
+                              <div className={styles.preparationTimer}>
+                                <span className={styles.preparationTimerTitle}>
+                                  Preparation Time
+                                </span>
+                                <span className={styles.preparationTimerValue}>
+                                  {formatDurationClock(preparationSeconds ?? 0)}
+                                </span>
+                              </div>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
 
