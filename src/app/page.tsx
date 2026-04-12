@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import HomePageClient from "@/components/home-page-client";
 import {
-  COOKIE_ADMIN_AUTH_KEY,
+  COOKIE_ADMIN_TOKEN_KEY,
   COOKIE_BRANCH_ID_KEY,
   COOKIE_BRANCH_NAME_KEY,
 } from "@/components/branch-session";
@@ -56,12 +56,16 @@ export default async function HomePage({ searchParams }: PageProps) {
     process.env.BLACKFOREST_HOME_ADMIN_TOKEN?.trim() ||
     process.env.HOME_PAGE_ADMIN_TOKEN?.trim() ||
     "";
-  const hasAdminCookie =
-    readCookieValue(cookieStore.get(COOKIE_ADMIN_AUTH_KEY)?.value) === "1";
+  const adminSessionToken = readCookieValue(cookieStore.get(COOKIE_ADMIN_TOKEN_KEY)?.value);
+  const isAdminFromSession = Boolean(
+    adminToken && adminSessionToken && adminSessionToken === adminToken,
+  );
   const isAdminFromToken = Boolean(
     adminToken && requestedAdminToken && requestedAdminToken === adminToken,
   );
-  const isAdminMode = isAdminFromToken || (requestedAdminMode && (hasAdminCookie || !adminToken));
+  const isAdminMode = adminToken
+    ? isAdminFromToken || (requestedAdminMode && isAdminFromSession)
+    : requestedAdminMode;
   const cookieBranchId = readCookieValue(cookieStore.get(COOKIE_BRANCH_ID_KEY)?.value);
   const cookieBranchName = readCookieValue(cookieStore.get(COOKIE_BRANCH_NAME_KEY)?.value);
   const initialBranchId = requestedBranchId || cookieBranchId || "";

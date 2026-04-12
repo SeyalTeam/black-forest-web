@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { COOKIE_ADMIN_TOKEN_KEY } from "@/components/branch-session";
 
 const API_BASE = "https://blackforest.vseyal.com/api";
 
@@ -160,8 +161,15 @@ export async function POST(request: NextRequest) {
     };
 
     const incomingAdminToken = toTrimmedText(body.adminToken);
-    if (!incomingAdminToken || incomingAdminToken !== adminToken) {
-      return Response.json({ message: "Admin permission denied" }, { status: 403 });
+    const sessionToken = toTrimmedText(request.cookies.get(COOKIE_ADMIN_TOKEN_KEY)?.value);
+    const isAuthorized =
+      (incomingAdminToken && incomingAdminToken === adminToken) ||
+      (sessionToken && sessionToken === adminToken);
+    if (!isAuthorized) {
+      return Response.json(
+        { message: "Admin login required. Open /admin-login and try again." },
+        { status: 403 },
+      );
     }
 
     const branchId = toTrimmedText(body.branchId);

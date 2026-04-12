@@ -11,7 +11,6 @@ import {
   type DragEvent,
 } from "react";
 import {
-  COOKIE_ADMIN_AUTH_KEY,
   clearBranchSession,
   clearTableSession,
   readBranchSession,
@@ -432,15 +431,9 @@ export default function HomePageClient({
   const [favoriteSaveMessage, setFavoriteSaveMessage] = useState("");
 
   useEffect(() => {
-    if (
-      typeof document === "undefined" ||
-      typeof window === "undefined" ||
-      !initialIsAdmin
-    ) {
+    if (typeof window === "undefined" || !initialIsAdmin) {
       return;
     }
-
-    document.cookie = `${COOKIE_ADMIN_AUTH_KEY}=1; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`;
 
     const adminToken = new URLSearchParams(window.location.search)
       .get("adminToken")
@@ -832,26 +825,29 @@ export default function HomePageClient({
       }
 
       const adminToken = readStoredAdminToken();
-      if (!adminToken) {
-        setFavoriteProductSaveState("error");
-        setFavoriteProductSaveMessage("Open the admin-token URL once before saving.");
-        return;
-      }
 
       setFavoriteProductSaveState("saving");
       setFavoriteProductSaveMessage("Saving for customers...");
 
       try {
+        const requestPayload: {
+          branchId: string;
+          orderedProductIds: string[];
+          adminToken?: string;
+        } = {
+          branchId,
+          orderedProductIds,
+        };
+        if (adminToken) {
+          requestPayload.adminToken = adminToken;
+        }
+
         const response = await fetch("/api/favorite-products-order", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            branchId,
-            orderedProductIds,
-            adminToken,
-          }),
+          body: JSON.stringify(requestPayload),
           cache: "no-store",
         });
 
@@ -860,14 +856,14 @@ export default function HomePageClient({
           throw new Error(message);
         }
 
-        const payload = (await response.json()) as {
+        const responsePayload = (await response.json()) as {
           updated?: boolean;
           message?: string;
         };
         setFavoriteProductSaveState("saved");
         setFavoriteProductSaveMessage(
-          payload.updated === false
-            ? payload.message || "Already saved."
+          responsePayload.updated === false
+            ? responsePayload.message || "Already saved."
             : "Saved for customer view.",
         );
       } catch (error) {
@@ -886,26 +882,29 @@ export default function HomePageClient({
       }
 
       const adminToken = readStoredAdminToken();
-      if (!adminToken) {
-        setFavoriteSaveState("error");
-        setFavoriteSaveMessage("Open the admin-token URL once before saving.");
-        return;
-      }
 
       setFavoriteSaveState("saving");
       setFavoriteSaveMessage("Saving for customers...");
 
       try {
+        const requestPayload: {
+          branchId: string;
+          orderedCategoryIds: string[];
+          adminToken?: string;
+        } = {
+          branchId,
+          orderedCategoryIds,
+        };
+        if (adminToken) {
+          requestPayload.adminToken = adminToken;
+        }
+
         const response = await fetch("/api/favorite-categories-order", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            branchId,
-            orderedCategoryIds,
-            adminToken,
-          }),
+          body: JSON.stringify(requestPayload),
           cache: "no-store",
         });
 
@@ -914,14 +913,14 @@ export default function HomePageClient({
           throw new Error(message);
         }
 
-        const payload = (await response.json()) as {
+        const responsePayload = (await response.json()) as {
           updated?: boolean;
           message?: string;
         };
         setFavoriteSaveState("saved");
         setFavoriteSaveMessage(
-          payload.updated === false
-            ? payload.message || "Already saved."
+          responsePayload.updated === false
+            ? responsePayload.message || "Already saved."
             : "Saved for customer view.",
         );
       } catch (error) {

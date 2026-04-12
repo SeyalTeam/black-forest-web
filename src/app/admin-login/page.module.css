@@ -1,0 +1,106 @@
+.page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #f7f2eb 0%, #efe6da 100%);
+}
+
+.card {
+  width: min(460px, 100%);
+  border-radius: 18px;
+  padding: 22px;
+  background: #ffffff;
+  border: 1px solid #e9dfd1;
+  box-shadow: 0 20px 36px rgba(83, 58, 36, 0.1);
+}
+
+.title {
+  margin: 0;
+  color: #2d2a26;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.subtitle {
+  margin: 8px 0 18px;
+  color: #6b655f;
+  font-size: 14px;
+}
+
+.fields {
+  display: grid;
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.label {
+  color: #3b3733;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.input {
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid #d7cec0;
+  background: #fcfbfa;
+  color: #1f1a15;
+  font-size: 14px;
+}
+
+.input:focus {
+  outline: 2px solid rgba(239, 79, 95, 0.25);
+  border-color: #ef4f5f;
+}
+
+.error {
+  margin-top: 10px;
+  color: #ad1e34;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.actions {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nextPath {
+  max-width: 210px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #7d756b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.submit {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #ef4f5f;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
