@@ -24,7 +24,7 @@ import {
   VegIcon,
 } from "@/components/menu-icons";
 import { useOrder } from "@/components/order-provider";
-import type { BillSummaryData } from "@/lib/order-types";
+import type { BillSummaryData, BillSummaryItem } from "@/lib/order-types";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import styles from "./kot-shell.module.css";
 
@@ -64,6 +64,8 @@ const defaultCustomerConfig: CustomerDetailsConfig = {
 };
 
 const BILL_CACHE_KEY_PREFIX = "blackforest-order-web-bill:";
+const PREPARATION_TIMER_START_DELAY_SECONDS = 60;
+const PREPARATION_TIMER_INTERVAL_MS = 1_000;
 
 function normalizePhone(value: string) {
   return value.replace(/\D/g, "");
@@ -102,6 +104,117 @@ function titleCase(value: string) {
 
 function normalizeItemStatus(value: string) {
   return value.trim().toLowerCase();
+}
+
+function isPreparationTimerStoppedStatus(status: string) {
+  const normalized = normalizeItemStatus(status);
+  return (
+    normalized === "prepared" ||
+    normalized === "delivered" ||
+    normalized === "completed" ||
+    normalized === "cancelled" ||
+    normalized === "canceled"
+  );
+}
+
+function canShowPreparationTimer(status: string) {
+  const normalized = normalizeItemStatus(status);
+  return (
+    normalized === "pending" ||
+    normalized === "ordered" ||
+    normalized === "confirmed" ||
+    normalized === "prepared"
+  );
+}
+
+function formatDurationClock(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function parseDateOrClockTime(value: string, referenceDateText: string) {
+  const input = value.trim();
+  if (!input) {
+    return null;
+  }
+
+  const directDate = new Date(input);
+  if (!Number.isNaN(directDate.getTime())) {
+    return directDate.getTime();
+  }
+
+  const timeMatch = input.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!timeMatch) {
+    return null;
+  }
+
+  const referenceDate = referenceDateText ? new Date(referenceDateText) : new Date();
+  if (Number.isNaN(referenceDate.getTime())) {
+    return null;
+  }
+
+  const hours = Number.parseInt(timeMatch[1], 10);
+  const minutes = Number.parseInt(timeMatch[2], 10);
+  const seconds = Number.parseInt(timeMatch[3] ?? "0", 10);
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes) ||
+    !Number.isFinite(seconds) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59 ||
+    seconds < 0 ||
+    seconds > 59
+  ) {
+    return null;
+  }
+
+  const timestamp = new Date(referenceDate);
+  timestamp.setHours(hours, minutes, seconds, 0);
+
+  if (timestamp.getTime() - referenceDate.getTime() > 12 * 60 * 60 * 1000) {
+    timestamp.setDate(timestamp.getDate() - 1);
+  }
+
+  return timestamp.getTime();
+}
+
+function resolveOrderedTimestampMs(item: BillSummaryItem, billCreatedAt: string) {
+  const candidates = [item.orderedAt, billCreatedAt];
+  for (const candidate of candidates) {
+    const timestamp = parseDateOrClockTime(candidate, billCreatedAt);
+    if (timestamp !== null) {
+      return timestamp;
+    }
+  }
+
+  return null;
+}
+
+function computePreparationRemainingSeconds(
+  item: BillSummaryItem,
+  billCreatedAt: string,
+  nowMs: number,
+) {
+  if (!item.preparationTime || item.preparationTime <= 0) {
+    return null;
+  }
+
+  const preparationSeconds = Math.max(0, Math.round(item.preparationTime * 60));
+  const orderedTimestamp = resolveOrderedTimestampMs(item, billCreatedAt);
+  if (orderedTimestamp === null) {
+    return preparationSeconds;
+  }
+
+  const elapsedSeconds = Math.max(0, Math.floor((nowMs - orderedTimestamp) / 1000));
+  const elapsedAfterDelay = Math.max(
+    0,
+    elapsedSeconds - PREPARATION_TIMER_START_DELAY_SECONDS,
+  );
+  return Math.max(0, preparationSeconds - elapsedAfterDelay);
 }
 
 function formatBillBlockingItems(items: BillSummaryData["items"]) {
@@ -165,6 +278,10 @@ export default function KotPage() {
   const [showBillDisabledReason, setShowBillDisabledReason] = useState(false);
   const [orderMessage, setOrderMessage] = useState("");
   const [orderError, setOrderError] = useState("");
+  const [preparationClockMs, setPreparationClockMs] = useState(() => Date.now());
+  const [frozenPreparationSecondsByItem, setFrozenPreparationSecondsByItem] = useState<
+    Record<string, number>
+  >({});
   const lookupDebounceRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -300,8 +417,20 @@ export default function KotPage() {
     };
 
     void loadPreviousBill();
+    const refreshTimerId = window.setInterval(() => {
+      void loadPreviousBill();
+    }, 5_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadPreviousBill();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       isDisposed = true;
+      window.clearInterval(refreshTimerId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [branchId]);
 
@@ -359,6 +488,78 @@ export default function KotPage() {
     !isHistoryLookupLoading;
   const showCustomerSummary =
     normalizedCustomerPhoneDraft.length >= 10 && customerLookupData !== null;
+
+  useEffect(() => {
+    setPreparationClockMs(Date.now());
+  }, [matchingPreviousBill?.billId, matchingPreviousBill?.items]);
+
+  useEffect(() => {
+    const hasRunningPreparationTimers = (matchingPreviousBill?.items ?? []).some(
+      (item) =>
+        canShowPreparationTimer(item.status) &&
+        item.preparationTime &&
+        item.preparationTime > 0 &&
+        !isPreparationTimerStoppedStatus(item.status),
+    );
+    if (!hasRunningPreparationTimers) {
+      return;
+    }
+
+    const timerId = window.setInterval(() => {
+      setPreparationClockMs(Date.now());
+    }, PREPARATION_TIMER_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, [matchingPreviousBill?.items]);
+
+  useEffect(() => {
+    if (!matchingPreviousBill) {
+      setFrozenPreparationSecondsByItem({});
+      return;
+    }
+
+    const nowMs = Date.now();
+    setFrozenPreparationSecondsByItem((current) => {
+      const next: Record<string, number> = {};
+
+      for (const item of matchingPreviousBill.items) {
+        if (!canShowPreparationTimer(item.status)) {
+          continue;
+        }
+        if (!item.preparationTime || item.preparationTime <= 0) {
+          continue;
+        }
+        if (!isPreparationTimerStoppedStatus(item.status)) {
+          continue;
+        }
+
+        const existing = current[item.id];
+        if (existing !== undefined) {
+          next[item.id] = existing;
+          continue;
+        }
+
+        const remainingSeconds = computePreparationRemainingSeconds(
+          item,
+          matchingPreviousBill.createdAt,
+          parseDateOrClockTime(item.preparedAt, matchingPreviousBill.createdAt) ?? nowMs,
+        );
+        if (remainingSeconds !== null) {
+          next[item.id] = remainingSeconds;
+        }
+      }
+
+      const currentKeys = Object.keys(current);
+      const nextKeys = Object.keys(next);
+      const isSame =
+        currentKeys.length === nextKeys.length &&
+        nextKeys.every((key) => current[key] === next[key]);
+
+      return isSame ? current : next;
+    });
+  }, [matchingPreviousBill?.billId, matchingPreviousBill?.createdAt, matchingPreviousBill?.items]);
 
   const closeRequestEditor = () => {
     setEditingRequestItemId(null);
@@ -876,22 +1077,50 @@ export default function KotPage() {
               </div>
 
               <div className={styles.previousItemList}>
-                {matchingPreviousBill!.items.map((item) => (
-                  <article key={item.id} className={styles.previousItemRow}>
-                    <div className={styles.itemLead}>
-                      <VegIcon isVeg={item.isVeg} />
-                      <div className={styles.previousItemMeta}>
-                        <h3>{item.name}</h3>
-                        <div className={styles.statusPill}>{titleCase(item.status)}</div>
-                      </div>
-                    </div>
+                {matchingPreviousBill!.items.map((item) => {
+                  const normalizedStatus = normalizeItemStatus(item.status);
+                  const isStopped = isPreparationTimerStoppedStatus(normalizedStatus);
+                  const liveRemainingSeconds = computePreparationRemainingSeconds(
+                    item,
+                    matchingPreviousBill!.createdAt,
+                    preparationClockMs,
+                  );
+                  const frozenSeconds = frozenPreparationSecondsByItem[item.id];
+                  const preparationSeconds =
+                    isStopped && frozenSeconds !== undefined
+                      ? frozenSeconds
+                      : liveRemainingSeconds;
+                  const showPreparationTimer =
+                    canShowPreparationTimer(item.status) &&
+                    preparationSeconds !== null;
 
-                    <div className={styles.previousItemActions}>
-                      <div className={styles.readonlyQtyBox}>{item.quantity}</div>
-                      <div className={styles.itemPrice}>₹{item.subtotal}</div>
-                    </div>
-                  </article>
-                ))}
+                  return (
+                    <article key={item.id} className={styles.previousItemRow}>
+                      <div className={styles.itemLead}>
+                        <VegIcon isVeg={item.isVeg} />
+                        <div className={styles.previousItemMeta}>
+                          <h3>{item.name}</h3>
+                          <div className={styles.statusPill}>{titleCase(item.status)}</div>
+                          {showPreparationTimer ? (
+                            <div className={styles.preparationTimer}>
+                              <span className={styles.preparationTimerTitle}>
+                                Preparation Time
+                              </span>
+                              <span className={styles.preparationTimerValue}>
+                                {formatDurationClock(preparationSeconds ?? 0)}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className={styles.previousItemActions}>
+                        <div className={styles.readonlyQtyBox}>{item.quantity}</div>
+                        <div className={styles.itemPrice}>₹{item.subtotal}</div>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </>
           ) : null}

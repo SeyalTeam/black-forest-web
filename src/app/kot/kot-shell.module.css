@@ -299,6 +299,32 @@
   text-transform: uppercase;
 }
 
+.preparationTimer {
+  width: 100%;
+  margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.preparationTimerTitle {
+  color: #ef4f5f;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.preparationTimerValue {
+  margin-top: 2px;
+  color: #ef4f5f;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .previousItemActions {
   display: flex;
   flex-direction: column;
@@ -1007,6 +1033,14 @@
     min-height: 30px;
     padding: 0 12px;
     font-size: 0.76rem;
+  }
+
+  .preparationTimerTitle {
+    font-size: 0.63rem;
+  }
+
+  .preparationTimerValue {
+    font-size: 0.92rem;
   }
 
   .readonlyQtyBox {

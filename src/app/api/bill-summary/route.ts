@@ -27,6 +27,24 @@ function toBoolean(value: unknown) {
   return false;
 }
 
+function readText(...values: unknown[]) {
+  for (const value of values) {
+    const text = toTrimmedText(value);
+    if (text) {
+      return text;
+    }
+  }
+  return "";
+}
+
+function toPreparationMinutes(value: unknown) {
+  const minutes = toFiniteNumber(value);
+  if (!Number.isFinite(minutes) || minutes <= 0) {
+    return null;
+  }
+  return minutes;
+}
+
 function normalizeStatus(value: unknown) {
   const normalized = toTrimmedText(value).toLowerCase();
   return normalized || "ordered";
@@ -40,7 +58,7 @@ function normalizePaymentMethod(value: unknown) {
   return "cash";
 }
 
-function parseItems(value: unknown): BillSummaryItem[] {
+function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -57,14 +75,32 @@ function parseItems(value: unknown): BillSummaryItem[] {
         item.product && typeof item.product === "object" && !Array.isArray(item.product)
           ? (item.product as Record<string, unknown>)
           : null;
+      const status = normalizeStatus(item.status);
+      const orderedAt = readText(
+        item.orderedAt,
+        item.orderedTime,
+        item.createdAt,
+        billCreatedAt,
+      );
+      const preparedAt = readText(
+        item.preparedAt,
+        item.preparedTime,
+        item.updatedAt,
+      );
+      const preparationTime = toPreparationMinutes(
+        item.preparationTime ?? product?.preparationTime,
+      );
 
       return {
         id: toTrimmedText(item.id) || toTrimmedText(product?.id) || crypto.randomUUID(),
         name: toTrimmedText(item.name) || toTrimmedText(product?.name) || "Unknown item",
         quantity: Math.max(1, toFiniteNumber(item.quantity) || 1),
         subtotal: toFiniteNumber(item.subtotal),
-        status: normalizeStatus(item.status),
+        status,
         isVeg: toBoolean(product?.isVeg),
+        preparationTime,
+        orderedAt,
+        preparedAt,
       } satisfies BillSummaryItem;
     })
     .filter((item): item is BillSummaryItem => item !== null);
@@ -99,13 +135,14 @@ export async function GET(request: NextRequest) {
     const summary: BillSummaryData = {
       billId: toTrimmedText(payload.id) || billId,
       invoiceNumber: toTrimmedText(payload.invoiceNumber),
+      createdAt: toTrimmedText(payload.createdAt),
       branchName: toTrimmedText(branch?.name) || "VSeyal",
       tableNumber: toTrimmedText(tableDetails?.tableNumber),
       section: toTrimmedText(tableDetails?.section),
       status: normalizeStatus(payload.status),
       totalAmount: toFiniteNumber(payload.totalAmount),
       paymentMethod: normalizePaymentMethod(payload.paymentMethod),
-      items: parseItems(payload.items),
+      items: parseItems(payload.items, toTrimmedText(payload.createdAt)),
     };
 
     return Response.json(summary);

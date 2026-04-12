@@ -88,11 +88,15 @@ export type BillSummaryItem = {
   subtotal: number;
   status: string;
   isVeg: boolean;
+  preparationTime: number | null;
+  orderedAt: string;
+  preparedAt: string;
 };
 
 export type BillSummaryData = {
   billId: string;
   invoiceNumber: string;
+  createdAt: string;
   branchName: string;
   tableNumber: string;
   section: string;
