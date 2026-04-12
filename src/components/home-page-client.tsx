@@ -45,7 +45,6 @@ const HOME_REFRESH_INTERVAL_MS = 5_000;
 const FAVORITE_ORDER_KEY_PREFIX = "blackforest-order-web-favorite-categories-order-v1:";
 const FAVORITE_PRODUCT_ORDER_KEY_PREFIX =
   "blackforest-order-web-favorite-products-order-v1:";
-const ADMIN_TOKEN_STORAGE_KEY = "blackforest-order-web-admin-token-v1";
 
 type FavoriteProductCard = {
   key: string;
@@ -136,23 +135,6 @@ function clearFavoriteProductOrder(branchId: string) {
   }
 
   window.localStorage.removeItem(`${FAVORITE_PRODUCT_ORDER_KEY_PREFIX}${branchId}`);
-}
-
-function readStoredAdminToken() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-  return window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)?.trim() ?? "";
-}
-
-function writeStoredAdminToken(token: string) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const normalized = token.trim();
-  if (!normalized) return;
-  window.localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, normalized);
 }
 
 function applyFavoriteOrder(categories: CategoryCard[], order: string[]) {
@@ -429,19 +411,6 @@ export default function HomePageClient({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const [favoriteSaveMessage, setFavoriteSaveMessage] = useState("");
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !initialIsAdmin) {
-      return;
-    }
-
-    const adminToken = new URLSearchParams(window.location.search)
-      .get("adminToken")
-      ?.trim();
-    if (adminToken) {
-      writeStoredAdminToken(adminToken);
-    }
-  }, [initialIsAdmin]);
 
   useEffect(() => {
     let isDisposed = false;
@@ -824,8 +793,6 @@ export default function HomePageClient({
         return;
       }
 
-      const adminToken = readStoredAdminToken();
-
       setFavoriteProductSaveState("saving");
       setFavoriteProductSaveMessage("Saving for customers...");
 
@@ -833,14 +800,10 @@ export default function HomePageClient({
         const requestPayload: {
           branchId: string;
           orderedProductIds: string[];
-          adminToken?: string;
         } = {
           branchId,
           orderedProductIds,
         };
-        if (adminToken) {
-          requestPayload.adminToken = adminToken;
-        }
 
         const response = await fetch("/api/favorite-products-order", {
           method: "POST",
@@ -881,8 +844,6 @@ export default function HomePageClient({
         return;
       }
 
-      const adminToken = readStoredAdminToken();
-
       setFavoriteSaveState("saving");
       setFavoriteSaveMessage("Saving for customers...");
 
@@ -890,14 +851,10 @@ export default function HomePageClient({
         const requestPayload: {
           branchId: string;
           orderedCategoryIds: string[];
-          adminToken?: string;
         } = {
           branchId,
           orderedCategoryIds,
         };
-        if (adminToken) {
-          requestPayload.adminToken = adminToken;
-        }
 
         const response = await fetch("/api/favorite-categories-order", {
           method: "POST",

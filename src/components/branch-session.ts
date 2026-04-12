@@ -2,7 +2,6 @@ export const SESSION_BRANCH_ID_KEY = "blackforest-order-web-branch-id";
 export const SESSION_BRANCH_NAME_KEY = "blackforest-order-web-branch-name";
 export const COOKIE_BRANCH_ID_KEY = "blackforest-order-web-branch-id";
 export const COOKIE_BRANCH_NAME_KEY = "blackforest-order-web-branch-name";
-export const COOKIE_ADMIN_AUTH_KEY = "blackforest-order-web-admin-auth";
 export const COOKIE_ADMIN_TOKEN_KEY = "blackforest-order-web-admin-token";
 export const SESSION_TABLE_NUMBER_KEY = "blackforest-order-web-table-number";
 export const SESSION_TABLE_SECTION_KEY = "blackforest-order-web-table-section";

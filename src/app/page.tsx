@@ -5,6 +5,7 @@ import {
   COOKIE_BRANCH_ID_KEY,
   COOKIE_BRANCH_NAME_KEY,
 } from "@/components/branch-session";
+import { fetchCurrentUser } from "@/lib/admin-auth";
 import { getHomePageData } from "@/lib/home-data";
 
 type SearchParamValue = string | string[] | undefined;
@@ -51,21 +52,11 @@ export default async function HomePage({ searchParams }: PageProps) {
     readSearchParam(resolvedSearchParams, "t");
   const requestedTableSection = readSearchParam(resolvedSearchParams, "section");
   const requestedAdminMode = readBooleanSearchParam(resolvedSearchParams, "admin");
-  const requestedAdminToken = readSearchParam(resolvedSearchParams, "adminToken");
-  const adminToken =
-    process.env.BLACKFOREST_HOME_ADMIN_TOKEN?.trim() ||
-    process.env.HOME_PAGE_ADMIN_TOKEN?.trim() ||
-    "";
   const adminSessionToken = readCookieValue(cookieStore.get(COOKIE_ADMIN_TOKEN_KEY)?.value);
-  const isAdminFromSession = Boolean(
-    adminToken && adminSessionToken && adminSessionToken === adminToken,
-  );
-  const isAdminFromToken = Boolean(
-    adminToken && requestedAdminToken && requestedAdminToken === adminToken,
-  );
-  const isAdminMode = adminToken
-    ? isAdminFromToken || (requestedAdminMode && isAdminFromSession)
-    : requestedAdminMode;
+  const adminSession = requestedAdminMode
+    ? await fetchCurrentUser(adminSessionToken)
+    : { ok: false, isSuperAdmin: false };
+  const isAdminMode = requestedAdminMode && adminSession.ok && adminSession.isSuperAdmin;
   const cookieBranchId = readCookieValue(cookieStore.get(COOKIE_BRANCH_ID_KEY)?.value);
   const cookieBranchName = readCookieValue(cookieStore.get(COOKIE_BRANCH_NAME_KEY)?.value);
   const initialBranchId = requestedBranchId || cookieBranchId || "";

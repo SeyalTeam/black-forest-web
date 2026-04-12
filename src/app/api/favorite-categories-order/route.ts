@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { COOKIE_ADMIN_TOKEN_KEY } from "@/components/branch-session";
-
-const API_BASE = "https://blackforest.vseyal.com/api";
+import { API_BASE, fetchCurrentUser, readResponseMessage } from "@/lib/admin-auth";
 
 type DynamicMap = Record<string, unknown>;
 
@@ -114,64 +113,24 @@ function reorderRuleCategories(
   return { changed, categories: next };
 }
 
-async function readResponseMessage(response: Response) {
-  const raw = await response.text();
-  try {
-    const parsed = JSON.parse(raw) as {
-      message?: string;
-      errors?: Array<{ message?: string }>;
-    };
-    return parsed.message || parsed.errors?.[0]?.message || raw || "Request failed";
-  } catch {
-    return raw || "Request failed";
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const adminToken =
-      process.env.BLACKFOREST_HOME_ADMIN_TOKEN?.trim() ||
-      process.env.HOME_PAGE_ADMIN_TOKEN?.trim() ||
-      "";
-    if (!adminToken) {
-      return Response.json(
-        {
-          message:
-            "Admin reorder is not configured yet. Add BLACKFOREST_HOME_ADMIN_TOKEN in Vercel.",
-        },
-        { status: 503 },
-      );
-    }
-
-    const apiToken =
-      process.env.BLACKFOREST_API_TOKEN?.trim() ||
-      process.env.BLACKFOREST_BILLING_TOKEN?.trim() ||
-      process.env.BLACKFOREST_API_BEARER_TOKEN?.trim() ||
-      "";
-    if (!apiToken) {
-      return Response.json(
-        {
-          message:
-            "Backend write token is missing. Add BLACKFOREST_API_TOKEN in Vercel.",
-        },
-        { status: 503 },
-      );
-    }
-
     const body = (await request.json()) as {
       branchId?: string;
       orderedCategoryIds?: string[];
-      adminToken?: string;
     };
 
-    const incomingAdminToken = toTrimmedText(body.adminToken);
     const sessionToken = toTrimmedText(request.cookies.get(COOKIE_ADMIN_TOKEN_KEY)?.value);
-    const isAuthorized =
-      (incomingAdminToken && incomingAdminToken === adminToken) ||
-      (sessionToken && sessionToken === adminToken);
-    if (!isAuthorized) {
+    if (!sessionToken) {
       return Response.json(
-        { message: "Admin login required. Open /admin-login and try again." },
+        { message: "Admin login required. Open /admin and try again." },
+        { status: 403 },
+      );
+    }
+    const currentUser = await fetchCurrentUser(sessionToken);
+    if (!currentUser.ok || !currentUser.isSuperAdmin) {
+      return Response.json(
+        { message: "Only superadmin is allowed for admin mode." },
         { status: 403 },
       );
     }
@@ -197,7 +156,7 @@ export async function POST(request: NextRequest) {
 
     const settingsResponse = await fetch(`${API_BASE}/globals/widget-settings?depth=0`, {
       headers: {
-        Authorization: `Bearer ${apiToken}`,
+        Authorization: `Bearer ${sessionToken}`,
       },
       cache: "no-store",
     });
@@ -280,15 +239,15 @@ export async function POST(request: NextRequest) {
     const updateResponse = await fetch(
       `${API_BASE}/globals/widget-settings/${settingsId}?depth=0`,
       {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        favoriteCategoriesByBranchRules: updatedRules,
-      }),
-      cache: "no-store",
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          favoriteCategoriesByBranchRules: updatedRules,
+        }),
+        cache: "no-store",
       },
     );
 

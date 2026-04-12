@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { COOKIE_ADMIN_TOKEN_KEY } from "@/components/branch-session";
+import {
+  API_BASE,
+  fetchCurrentUser,
+  readResponseMessage,
+} from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
@@ -9,61 +14,63 @@ function toTrimmedText(value: unknown) {
 
 export async function POST(request: NextRequest) {
   try {
-    const superAdminUsername =
-      process.env.BLACKFOREST_SUPERADMIN_USERNAME?.trim() ||
-      process.env.SUPERADMIN_USERNAME?.trim() ||
-      "";
-    const superAdminPassword =
-      process.env.BLACKFOREST_SUPERADMIN_PASSWORD?.trim() ||
-      process.env.SUPERADMIN_PASSWORD?.trim() ||
-      "";
-    const adminToken =
-      process.env.BLACKFOREST_HOME_ADMIN_TOKEN?.trim() ||
-      process.env.HOME_PAGE_ADMIN_TOKEN?.trim() ||
-      "";
-
-    if (!superAdminUsername || !superAdminPassword) {
-      return NextResponse.json(
-        {
-          message:
-            "Superadmin login is not configured. Add BLACKFOREST_SUPERADMIN_USERNAME and BLACKFOREST_SUPERADMIN_PASSWORD.",
-        },
-        { status: 503 },
-      );
-    }
-
-    if (!adminToken) {
-      return NextResponse.json(
-        {
-          message: "Admin session is not configured. Add BLACKFOREST_HOME_ADMIN_TOKEN.",
-        },
-        { status: 503 },
-      );
-    }
-
     const body = (await request.json()) as {
       username?: string;
+      email?: string;
       password?: string;
     };
-    const username = toTrimmedText(body.username).toLowerCase();
+    const usernameOrEmail = toTrimmedText(body.username || body.email).toLowerCase();
     const password = toTrimmedText(body.password);
 
-    if (
-      !username ||
-      !password ||
-      username !== superAdminUsername.toLowerCase() ||
-      password !== superAdminPassword
-    ) {
+    if (!usernameOrEmail || !password) {
+      return NextResponse.json({ message: "Enter username/email and password." }, { status: 400 });
+    }
+
+    const loginResponse = await fetch(`${API_BASE}/users/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: usernameOrEmail,
+        password,
+      }),
+      cache: "no-store",
+    });
+
+    if (!loginResponse.ok) {
       return NextResponse.json(
-        { message: "Invalid superadmin username or password" },
-        { status: 401 },
+        { message: await readResponseMessage(loginResponse) },
+        { status: loginResponse.status },
+      );
+    }
+
+    const loginPayload = (await loginResponse.json()) as {
+      token?: string;
+      data?: {
+        token?: string;
+      };
+    };
+    const sessionToken = toTrimmedText(loginPayload.token || loginPayload.data?.token);
+    if (!sessionToken) {
+      return NextResponse.json(
+        { message: "Login succeeded but token was missing." },
+        { status: 500 },
+      );
+    }
+
+    const me = await fetchCurrentUser(sessionToken);
+    if (!me.ok || !me.isSuperAdmin) {
+      return NextResponse.json(
+        { message: "Only superadmin is allowed for admin mode." },
+        { status: 403 },
       );
     }
 
     const response = NextResponse.json({ ok: true });
     response.cookies.set({
       name: COOKIE_ADMIN_TOKEN_KEY,
-      value: adminToken,
+      value: sessionToken,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
