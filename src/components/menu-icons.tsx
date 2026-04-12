@@ -153,6 +153,28 @@ export function BellIcon({ className }: IconProps) {
   );
 }
 
+export function Move4WayIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path
+        d="M12 4v16M4 12h16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="m12 3-2.3 2.3M12 3l2.3 2.3M21 12l-2.3-2.3M21 12l-2.3 2.3M12 21l-2.3-2.3M12 21l2.3-2.3M3 12l2.3-2.3M3 12l2.3 2.3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function CartIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>

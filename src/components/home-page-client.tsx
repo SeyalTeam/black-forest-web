@@ -20,6 +20,7 @@ import {
 import {
   ChevronRightIcon,
   MicIcon,
+  Move4WayIcon,
   PinIcon,
   ProfileIcon,
   SearchIcon,
@@ -1313,6 +1314,11 @@ export default function HomePageClient({
                     onDragEnd={handleFavoriteProductDragEnd}
                   >
                     <div className={styles.productArt}>
+                      {isFavoriteProductDragEnabled ? (
+                        <span className={styles.dragMoveHandle} aria-hidden="true">
+                          <Move4WayIcon className={styles.dragMoveHandleIcon} />
+                        </span>
+                      ) : null}
                       <div
                         className={`${styles.productArtBackground} ${
                           isOutOfStock ? styles.productArtBackgroundOutOfStock : ""
@@ -1427,6 +1433,11 @@ export default function HomePageClient({
                           : undefined,
                       }}
                     />
+                    {isFavoriteCategoryDragEnabled ? (
+                      <span className={styles.dragMoveHandle} aria-hidden="true">
+                        <Move4WayIcon className={styles.dragMoveHandleIcon} />
+                      </span>
+                    ) : null}
                     <div className={styles.favoriteCardLabel}>{category.name}</div>
                     <span className={styles.favoriteDragTag}>Drag</span>
                   </article>
