@@ -625,6 +625,11 @@ export default function HomePageClient({
       return;
     }
 
+    if (!initialIsAdmin) {
+      setFavoriteProducts(baseFavoriteProducts);
+      return;
+    }
+
     const favoriteProductOrder = readFavoriteProductOrder(branchId);
     if (favoriteProductOrder.length === 0) {
       setFavoriteProducts(baseFavoriteProducts);
@@ -632,10 +637,15 @@ export default function HomePageClient({
     }
 
     setFavoriteProducts(applyFavoriteProductOrder(baseFavoriteProducts, favoriteProductOrder));
-  }, [baseFavoriteProducts, branchId]);
+  }, [baseFavoriteProducts, branchId, initialIsAdmin]);
 
   useEffect(() => {
     if (!branchId) {
+      setFavoriteCategories(baseFavoriteCategories);
+      return;
+    }
+
+    if (!initialIsAdmin) {
       setFavoriteCategories(baseFavoriteCategories);
       return;
     }
@@ -647,7 +657,7 @@ export default function HomePageClient({
     }
 
     setFavoriteCategories(applyFavoriteOrder(baseFavoriteCategories, favoriteOrder));
-  }, [baseFavoriteCategories, branchId]);
+  }, [baseFavoriteCategories, branchId, initialIsAdmin]);
 
   const categoryImages = useMemo(() => {
     const map: Record<string, string> = {};
