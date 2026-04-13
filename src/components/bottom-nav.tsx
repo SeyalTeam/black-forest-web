@@ -285,9 +285,7 @@ export function BottomNav() {
         >
           <CallWaiterIcon className={styles.bottomNavSosIcon} />
           <span className={styles.bottomNavSosHint}>
-            {!hasActiveBillForWaiterCall
-              ? "Place Order"
-              : waiterCallState === "loading"
+            {waiterCallState === "loading"
               ? "Calling..."
               : waiterCooldownSeconds > 0
                 ? `Wait ${waiterCooldownSeconds}s`
