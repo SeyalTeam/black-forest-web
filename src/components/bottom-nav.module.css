@@ -13,7 +13,7 @@
 
 .bottomNavInner {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -68,6 +68,85 @@
   border: 2px solid #ffffff;
 }
 
+.bottomNavSosButton {
+  min-height: 62px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 18px;
+  border: 0;
+  background: linear-gradient(180deg, #ff5a66, #d92b45);
+  color: #ffffff;
+  box-shadow:
+    0 12px 18px rgba(198, 41, 64, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+.bottomNavSosButton:hover {
+  transform: translateY(-1px);
+}
+
+.bottomNavSosButton:active {
+  transform: translateY(0);
+}
+
+.bottomNavSosButton:disabled {
+  cursor: wait;
+  opacity: 0.86;
+  transform: none;
+}
+
+.bottomNavSosLabel {
+  font-size: 1.02rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
+.bottomNavSosHint {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+  opacity: 0.94;
+}
+
+.bottomNavNotice {
+  margin: 0 0 8px;
+  min-height: 38px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(239, 79, 95, 0.1);
+  border: 1px solid rgba(239, 79, 95, 0.26);
+  color: #b53749;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.bottomNavNoticeSuccess {
+  background: rgba(37, 173, 102, 0.12);
+  border-color: rgba(37, 173, 102, 0.3);
+  color: #1d8e57;
+}
+
+.bottomNavNoticeError {
+  background: rgba(214, 67, 83, 0.12);
+  border-color: rgba(214, 67, 83, 0.3);
+  color: #ba3547;
+}
+
 @media (max-width: 640px) {
   .bottomNavShell {
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
@@ -76,6 +155,20 @@
   .bottomNavItem,
   .bottomNavItemActive {
     min-height: 54px;
+  }
+
+  .bottomNavSosButton {
+    min-height: 56px;
+    gap: 2px;
+  }
+
+  .bottomNavSosLabel {
+    font-size: 0.96rem;
+  }
+
+  .bottomNavSosHint {
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
   }
 
   .bottomNavLabel {
