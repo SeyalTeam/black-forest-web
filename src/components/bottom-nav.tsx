@@ -8,9 +8,16 @@ import {
   readBranchSession,
   readTableSession,
 } from "@/components/branch-session";
-import { CartIcon, HomeNavIcon, MenuNavIcon } from "@/components/menu-icons";
+import {
+  CallWaiterIcon,
+  CartIcon,
+  HomeNavIcon,
+  MenuNavIcon,
+} from "@/components/menu-icons";
 import { useOrder } from "@/components/order-provider";
 import styles from "./bottom-nav.module.css";
+
+const WAITER_COOLDOWN_SECONDS = 30;
 
 function getActiveKey(pathname: string) {
   if (pathname === "/") {
@@ -37,6 +44,8 @@ export function BottomNav() {
   >("idle");
   const [waiterCallMessage, setWaiterCallMessage] = useState("");
   const messageTimerRef = useRef<number | null>(null);
+  const cooldownTimerRef = useRef<number | null>(null);
+  const [waiterCooldownSeconds, setWaiterCooldownSeconds] = useState(0);
 
   const items = [
     { key: "home", href: "/", label: "Home", Icon: HomeNavIcon },
@@ -50,6 +59,13 @@ export function BottomNav() {
     if (messageTimerRef.current !== null) {
       window.clearTimeout(messageTimerRef.current);
       messageTimerRef.current = null;
+    }
+  }, []);
+
+  const clearCooldownTimer = useCallback(() => {
+    if (cooldownTimerRef.current !== null) {
+      window.clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
     }
   }, []);
 
@@ -67,12 +83,59 @@ export function BottomNav() {
   useEffect(
     () => () => {
       clearMessageTimer();
+      clearCooldownTimer();
     },
-    [clearMessageTimer],
+    [clearCooldownTimer, clearMessageTimer],
+  );
+
+  const startWaiterCooldown = useCallback(() => {
+    clearCooldownTimer();
+    setWaiterCooldownSeconds(WAITER_COOLDOWN_SECONDS);
+    cooldownTimerRef.current = window.setInterval(() => {
+      setWaiterCooldownSeconds((current) => {
+        if (current <= 1) {
+          clearCooldownTimer();
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+  }, [clearCooldownTimer]);
+
+  const mapWaiterCallErrorMessage = useCallback(
+    (status: number, fallbackMessage: string) => {
+      if (status === 404) {
+        return "No active bill for this table";
+      }
+
+      if (status === 409) {
+        const normalized = fallbackMessage.trim().toLowerCase();
+        if (
+          normalized.includes("branch mismatch") ||
+          normalized.includes("different branch")
+        ) {
+          return "Branch mismatch";
+        }
+
+        if (
+          normalized.includes("bill already closed") ||
+          normalized.includes("closed") ||
+          normalized.includes("completed") ||
+          normalized.includes("settled") ||
+          normalized.includes("cancelled") ||
+          normalized.includes("canceled")
+        ) {
+          return "Bill already closed";
+        }
+      }
+
+      return fallbackMessage || "Unable to call waiter right now.";
+    },
+    [],
   );
 
   const handleCallWaiter = useCallback(async () => {
-    if (waiterCallState === "loading") {
+    if (waiterCallState === "loading" || waiterCooldownSeconds > 0) {
       return;
     }
 
@@ -89,7 +152,7 @@ export function BottomNav() {
 
     if (!branchId) {
       setWaiterCallState("error");
-      setWaiterCallMessage("Open the menu QR page first, then try SOS.");
+      setWaiterCallMessage("Open the menu QR page first, then tap Call waiter.");
       scheduleMessageReset(4200);
       return;
     }
@@ -102,7 +165,7 @@ export function BottomNav() {
     }
 
     setWaiterCallState("loading");
-    setWaiterCallMessage("Sending SOS to billing app...");
+    setWaiterCallMessage("Sending waiter call to billing app...");
 
     try {
       const response = await fetch("/api/call-waiter", {
@@ -123,13 +186,19 @@ export function BottomNav() {
       };
 
       if (!response.ok) {
-        throw new Error(payload.message || "Unable to call waiter right now.");
+        throw new Error(
+          mapWaiterCallErrorMessage(
+            response.status,
+            payload.message || "Unable to call waiter right now.",
+          ),
+        );
       }
 
       setWaiterCallState("success");
       setWaiterCallMessage(
-        payload.message || "SOS sent. Waiter has been alerted.",
+        payload.message || "Waiter call sent. Staff has been alerted.",
       );
+      startWaiterCooldown();
       scheduleMessageReset(3800);
     } catch (error) {
       setWaiterCallState("error");
@@ -138,7 +207,13 @@ export function BottomNav() {
       );
       scheduleMessageReset(4600);
     }
-  }, [scheduleMessageReset, waiterCallState]);
+  }, [
+    mapWaiterCallErrorMessage,
+    scheduleMessageReset,
+    startWaiterCooldown,
+    waiterCallState,
+    waiterCooldownSeconds,
+  ]);
 
   return (
     <nav className={styles.bottomNavShell} aria-label="Bottom navigation">
@@ -177,13 +252,17 @@ export function BottomNav() {
           type="button"
           className={styles.bottomNavSosButton}
           onClick={handleCallWaiter}
-          disabled={waiterCallState === "loading"}
+          disabled={waiterCallState === "loading" || waiterCooldownSeconds > 0}
           aria-label="Call waiter"
         >
-          <span className={styles.bottomNavSosLabel}>
-            {waiterCallState === "loading" ? "WAIT" : "SOS"}
+          <CallWaiterIcon className={styles.bottomNavSosIcon} />
+          <span className={styles.bottomNavSosHint}>
+            {waiterCallState === "loading"
+              ? "Calling..."
+              : waiterCooldownSeconds > 0
+                ? `Wait ${waiterCooldownSeconds}s`
+                : "Call Waiter"}
           </span>
-          <span className={styles.bottomNavSosHint}>Call Waiter</span>
         </button>
         {cartItems.map(({ key, href, label, Icon }) => {
           const isActive = activeKey === key;

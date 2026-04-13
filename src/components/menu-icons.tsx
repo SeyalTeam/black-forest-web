@@ -153,6 +153,21 @@ export function BellIcon({ className }: IconProps) {
   );
 }
 
+export function CallWaiterIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path
+        d="m6.2 4.8 2.1-1.3a1.2 1.2 0 0 1 1.7.5l1.6 3.1a1.2 1.2 0 0 1-.3 1.5L9.8 10a13 13 0 0 0 4.1 4.1l1.3-1.5a1.2 1.2 0 0 1 1.5-.3l3.1 1.6a1.2 1.2 0 0 1 .5 1.7l-1.3 2.1a2.4 2.4 0 0 1-2.5 1.1A15.8 15.8 0 0 1 4.9 7.3a2.4 2.4 0 0 1 1.3-2.5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function Move4WayIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
