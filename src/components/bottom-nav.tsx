@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   readActiveBillSession,
   readBranchSession,
-  readTableSession,
 } from "@/components/branch-session";
 import {
   CallWaiterIcon,
@@ -43,6 +42,7 @@ export function BottomNav() {
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [waiterCallMessage, setWaiterCallMessage] = useState("");
+  const [hasActiveBillForWaiterCall, setHasActiveBillForWaiterCall] = useState(false);
   const messageTimerRef = useRef<number | null>(null);
   const cooldownTimerRef = useRef<number | null>(null);
   const [waiterCooldownSeconds, setWaiterCooldownSeconds] = useState(0);
@@ -87,6 +87,32 @@ export function BottomNav() {
     },
     [clearCooldownTimer, clearMessageTimer],
   );
+
+  const refreshWaiterEligibility = useCallback(() => {
+    const branchSession = readBranchSession();
+    const branchId = branchSession?.branchId?.trim() ?? "";
+    const activeBill = readActiveBillSession(branchId);
+    const billId = activeBill?.billId?.trim() ?? "";
+    setHasActiveBillForWaiterCall(Boolean(branchId && billId));
+  }, []);
+
+  useEffect(() => {
+    refreshWaiterEligibility();
+  }, [pathname, refreshWaiterEligibility]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshWaiterEligibility();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("storage", handleFocus);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("storage", handleFocus);
+    };
+  }, [refreshWaiterEligibility]);
 
   const startWaiterCooldown = useCallback(() => {
     clearCooldownTimer();
@@ -142,13 +168,10 @@ export function BottomNav() {
     const branchSession = readBranchSession();
     const branchId = branchSession?.branchId?.trim() ?? "";
     const activeBill = readActiveBillSession(branchId);
-    const tableSession = readTableSession(branchId);
 
     const billId = activeBill?.billId?.trim() ?? "";
-    const tableNumber =
-      activeBill?.tableNumber?.trim() || tableSession?.tableNumber?.trim() || "";
-    const section =
-      activeBill?.section?.trim() || tableSession?.section?.trim() || "";
+    const tableNumber = activeBill?.tableNumber?.trim() ?? "";
+    const section = activeBill?.section?.trim() ?? "";
 
     if (!branchId) {
       setWaiterCallState("error");
@@ -157,9 +180,9 @@ export function BottomNav() {
       return;
     }
 
-    if (!billId && !tableNumber) {
+    if (!billId) {
       setWaiterCallState("error");
-      setWaiterCallMessage("Table details are missing. Open Cart once and retry.");
+      setWaiterCallMessage("Call waiter is available only after order is placed.");
       scheduleMessageReset(4200);
       return;
     }
@@ -215,6 +238,11 @@ export function BottomNav() {
     waiterCooldownSeconds,
   ]);
 
+  const isWaiterButtonDisabled =
+    waiterCallState === "loading" ||
+    waiterCooldownSeconds > 0 ||
+    !hasActiveBillForWaiterCall;
+
   return (
     <nav className={styles.bottomNavShell} aria-label="Bottom navigation">
       {waiterCallMessage ? (
@@ -252,12 +280,14 @@ export function BottomNav() {
           type="button"
           className={styles.bottomNavSosButton}
           onClick={handleCallWaiter}
-          disabled={waiterCallState === "loading" || waiterCooldownSeconds > 0}
+          disabled={isWaiterButtonDisabled}
           aria-label="Call waiter"
         >
           <CallWaiterIcon className={styles.bottomNavSosIcon} />
           <span className={styles.bottomNavSosHint}>
-            {waiterCallState === "loading"
+            {!hasActiveBillForWaiterCall
+              ? "Place Order"
+              : waiterCallState === "loading"
               ? "Calling..."
               : waiterCooldownSeconds > 0
                 ? `Wait ${waiterCooldownSeconds}s`
