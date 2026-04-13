@@ -90,6 +90,7 @@ export type BillSummaryItem = {
   isVeg: boolean;
   preparationTime: number | null;
   preparationTimeSource: "billing-item" | "product-default" | "none";
+  preparationTimeUpdatedAt: string;
   orderedAt: string;
   preparedAt: string;
 };

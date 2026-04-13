@@ -134,8 +134,8 @@ function formatDurationClock(totalSeconds: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-function parseDateOrClockTime(value: string, referenceDateText: string) {
-  const input = value.trim();
+function parseDateOrClockTime(value: unknown, referenceDateText: string) {
+  const input = typeof value === "string" ? value.trim() : "";
   if (!input) {
     return null;
   }
@@ -194,6 +194,23 @@ function resolveOrderedTimestampMs(item: BillSummaryItem, billCreatedAt: string)
   return null;
 }
 
+function resolvePreparationStartTimestampMs(
+  item: BillSummaryItem,
+  billCreatedAt: string,
+) {
+  if (item.preparationTimeSource === "billing-item") {
+    const preparationUpdatedTimestamp = parseDateOrClockTime(
+      item.preparationTimeUpdatedAt,
+      billCreatedAt,
+    );
+    if (preparationUpdatedTimestamp !== null) {
+      return preparationUpdatedTimestamp;
+    }
+  }
+
+  return resolveOrderedTimestampMs(item, billCreatedAt);
+}
+
 function computePreparationRemainingSeconds(
   item: BillSummaryItem,
   billCreatedAt: string,
@@ -204,12 +221,18 @@ function computePreparationRemainingSeconds(
   }
 
   const preparationSeconds = Math.max(0, Math.round(item.preparationTime * 60));
-  const orderedTimestamp = resolveOrderedTimestampMs(item, billCreatedAt);
-  if (orderedTimestamp === null) {
+  const preparationStartTimestamp = resolvePreparationStartTimestampMs(
+    item,
+    billCreatedAt,
+  );
+  if (preparationStartTimestamp === null) {
     return preparationSeconds;
   }
 
-  const elapsedSeconds = Math.max(0, Math.floor((nowMs - orderedTimestamp) / 1000));
+  const elapsedSeconds = Math.max(
+    0,
+    Math.floor((nowMs - preparationStartTimestamp) / 1000),
+  );
   const startDelaySeconds =
     item.preparationTimeSource === "billing-item"
       ? 0

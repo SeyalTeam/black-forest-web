@@ -48,6 +48,11 @@ function extractRefId(value: unknown): string {
     map.value,
     map.productId,
     map.product,
+    map.branchId,
+    map.branch,
+    map.item,
+    map.categoryId,
+    map.category,
   ];
 
   for (const candidate of candidates) {
@@ -229,6 +234,16 @@ export async function POST(request: NextRequest) {
     });
 
     if (changedRules === 0) {
+      if (touchedRules === 0) {
+        return Response.json(
+          {
+            message:
+              "No enabled favorite product rule matched this branch. Please check branch mapping in widget settings.",
+          },
+          { status: 404 },
+        );
+      }
+
       return Response.json({
         ok: true,
         updated: false,

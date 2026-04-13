@@ -1020,7 +1020,16 @@ export default function HomePageClient({
     setFavoriteCategories(baseFavoriteCategories);
     setFavoriteSaveState("idle");
     setFavoriteSaveMessage("");
-  }, [baseFavoriteCategories, branchId]);
+    if (baseFavoriteCategories.length > 0) {
+      void persistFavoriteOrderForCustomers(
+        baseFavoriteCategories.map((category) => category.id),
+      );
+    }
+  }, [
+    baseFavoriteCategories,
+    branchId,
+    persistFavoriteOrderForCustomers,
+  ]);
 
   const handleFavoriteDragStart = useCallback(
     (event: DragEvent<HTMLElement>, categoryId: string) => {

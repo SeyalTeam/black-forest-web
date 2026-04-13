@@ -140,6 +140,14 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
         item.updatedAt,
       );
       const preparationTimeInfo = resolvePreparationMinutes(item, product);
+      const preparationTimeUpdatedAt =
+        preparationTimeInfo.source === "billing-item"
+          ? readText(
+              item.preparingTimeUpdatedAt,
+              item.preparationTimeUpdatedAt,
+              item.updatedAt,
+            )
+          : "";
 
       return {
         id: toTrimmedText(item.id) || toTrimmedText(product?.id) || crypto.randomUUID(),
@@ -150,6 +158,7 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
         isVeg: toBoolean(product?.isVeg),
         preparationTime: preparationTimeInfo.minutes,
         preparationTimeSource: preparationTimeInfo.source,
+        preparationTimeUpdatedAt,
         orderedAt,
         preparedAt,
       } satisfies BillSummaryItem;
