@@ -259,55 +259,80 @@ export function BottomNav() {
           {waiterCallMessage}
         </div>
       ) : null}
-      <div className={styles.bottomNavInner}>
-        {primaryItems.map(({ key, href, label, Icon }) => {
-          const isActive = activeKey === key;
-          return (
-            <Link
-              key={key}
-              href={href}
-              className={isActive ? styles.bottomNavItemActive : styles.bottomNavItem}
+      <div
+        className={
+          hasActiveBillForWaiterCall ? styles.bottomNavInnerWithWaiter : styles.bottomNavInner
+        }
+      >
+        {hasActiveBillForWaiterCall ? (
+          <>
+            {primaryItems.map(({ key, href, label, Icon }) => {
+              const isActive = activeKey === key;
+              return (
+                <Link
+                  key={key}
+                  href={href}
+                  className={isActive ? styles.bottomNavItemActive : styles.bottomNavItem}
+                >
+                  <Icon className={styles.bottomNavIcon} />
+                  <span className={styles.bottomNavLabel}>{label}</span>
+                  {key === "cart" && totalItems > 0 ? (
+                    <span className={styles.bottomNavBadge}>{totalItems}</span>
+                  ) : null}
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              className={styles.bottomNavSosButton}
+              onClick={handleCallWaiter}
+              disabled={isWaiterButtonDisabled}
+              aria-label="Call waiter"
             >
-              <Icon className={styles.bottomNavIcon} />
-              <span className={styles.bottomNavLabel}>{label}</span>
-              {key === "cart" && totalItems > 0 ? (
-                <span className={styles.bottomNavBadge}>{totalItems}</span>
-              ) : null}
-            </Link>
-          );
-        })}
-        <button
-          type="button"
-          className={styles.bottomNavSosButton}
-          onClick={handleCallWaiter}
-          disabled={isWaiterButtonDisabled}
-          aria-label="Call waiter"
-        >
-          <CallWaiterIcon className={styles.bottomNavSosIcon} />
-          <span className={styles.bottomNavSosHint}>
-            {waiterCallState === "loading"
-              ? "Calling..."
-              : waiterCooldownSeconds > 0
-                ? `Wait ${waiterCooldownSeconds}s`
-                : "Call Waiter"}
-          </span>
-        </button>
-        {cartItems.map(({ key, href, label, Icon }) => {
-          const isActive = activeKey === key;
-          return (
-            <Link
-              key={key}
-              href={href}
-              className={isActive ? styles.bottomNavItemActive : styles.bottomNavItem}
-            >
-              <Icon className={styles.bottomNavIcon} />
-              <span className={styles.bottomNavLabel}>{label}</span>
-              {key === "cart" && totalItems > 0 ? (
-                <span className={styles.bottomNavBadge}>{totalItems}</span>
-              ) : null}
-            </Link>
-          );
-        })}
+              <CallWaiterIcon className={styles.bottomNavSosIcon} />
+              <span className={styles.bottomNavSosHint}>
+                {waiterCallState === "loading"
+                  ? "Calling..."
+                  : waiterCooldownSeconds > 0
+                    ? `Wait ${waiterCooldownSeconds}s`
+                    : "Call Waiter"}
+              </span>
+            </button>
+            {cartItems.map(({ key, href, label, Icon }) => {
+              const isActive = activeKey === key;
+              return (
+                <Link
+                  key={key}
+                  href={href}
+                  className={isActive ? styles.bottomNavItemActive : styles.bottomNavItem}
+                >
+                  <Icon className={styles.bottomNavIcon} />
+                  <span className={styles.bottomNavLabel}>{label}</span>
+                  {key === "cart" && totalItems > 0 ? (
+                    <span className={styles.bottomNavBadge}>{totalItems}</span>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </>
+        ) : (
+          items.map(({ key, href, label, Icon }) => {
+            const isActive = activeKey === key;
+            return (
+              <Link
+                key={key}
+                href={href}
+                className={isActive ? styles.bottomNavItemActive : styles.bottomNavItem}
+              >
+                <Icon className={styles.bottomNavIcon} />
+                <span className={styles.bottomNavLabel}>{label}</span>
+                {key === "cart" && totalItems > 0 ? (
+                  <span className={styles.bottomNavBadge}>{totalItems}</span>
+                ) : null}
+              </Link>
+            );
+          })
+        )}
       </div>
     </nav>
   );
