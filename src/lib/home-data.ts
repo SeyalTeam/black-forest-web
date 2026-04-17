@@ -17,7 +17,8 @@ const DEFAULT_BRANCH_ID =
   "6906dc71896efbd4bc64d028";
 const TOP_CATEGORY_RULE_NAME = "top categories";
 const INVENTORY_FETCH_BATCH_SIZE = 4;
-const INVENTORY_FETCH_TIMEOUT_MS = 20_000;
+const INVENTORY_FETCH_TIMEOUT_MS = 6_000;
+const INVENTORY_SNAPSHOT_MAX_PRODUCTS = 24;
 
 const ACCENTS = [
   "linear-gradient(135deg, #3b261e, #9d5a33)",
@@ -46,6 +47,17 @@ type InventorySnapshot = {
   quantity: number | null;
   isOutOfStock: boolean;
 };
+type InventorySnapshotCollection = {
+  byId: Map<string, InventorySnapshot>;
+  byName: Map<string, InventorySnapshot>;
+};
+
+function createEmptyInventorySnapshotCollection(): InventorySnapshotCollection {
+  return {
+    byId: new Map<string, InventorySnapshot>(),
+    byName: new Map<string, InventorySnapshot>(),
+  };
+}
 
 function hashText(value: string) {
   let hash = 0;
@@ -492,12 +504,9 @@ function readInventoryReportQuantity(node: unknown, branchId?: string): number |
 async function fetchInventorySnapshotsByProduct(
   products: Product[],
   branchId?: string,
-) {
+) : Promise<InventorySnapshotCollection> {
   if (products.length === 0) {
-    return {
-      byId: new Map<string, InventorySnapshot>(),
-      byName: new Map<string, InventorySnapshot>(),
-    };
+    return createEmptyInventorySnapshotCollection();
   }
 
   const applySnapshot = (
@@ -1026,13 +1035,13 @@ async function hydrateProducts(
   const productsNeedingInventorySnapshots = products.filter(
     (product) => !product.hasExplicitOutOfStock,
   );
+  const shouldFetchInventorySnapshots =
+    productsNeedingInventorySnapshots.length > 0 &&
+    productsNeedingInventorySnapshots.length <= INVENTORY_SNAPSHOT_MAX_PRODUCTS;
   const inventorySnapshotsPromise =
-    productsNeedingInventorySnapshots.length > 0
+    shouldFetchInventorySnapshots
       ? fetchInventorySnapshotsByProduct(productsNeedingInventorySnapshots, branchId)
-      : Promise.resolve({
-          byId: new Map<string, InventorySnapshot>(),
-          byName: new Map<string, InventorySnapshot>(),
-        });
+      : Promise.resolve(createEmptyInventorySnapshotCollection());
 
   if (categoryIds.length > 0 || missingMediaIds.length > 0) {
     const requests: Promise<unknown>[] = [];
@@ -1674,6 +1683,57 @@ const getCachedCategoriesPageData = unstable_cache(
   { revalidate: 60 },
 );
 
+async function buildProductsPageData(
+  categoryId: string,
+  branchId: string,
+  categoryName?: string,
+): Promise<ProductsPageData> {
+  const [widgetSettings, branchMeta] = await Promise.all([
+    fetchJson("/globals/widget-settings?depth=1"),
+    fetchBranchMeta(branchId),
+  ]);
+  const [products, categories, topCategories] = await Promise.all([
+    fetchProductsForCategory(branchId, categoryId),
+    fetchAllCategories(branchMeta.companyId),
+    fetchTopCategories(widgetSettings, branchId),
+  ]);
+
+  const selectedCategory =
+    categories.find((category) => category.id === categoryId) ??
+    topCategories.find((category) => category.id === categoryId) ??
+    null;
+  const firstProduct = products && products.length > 0 ? products[0] : null;
+  const resolvedCategoryName =
+    readText(categoryName, selectedCategory?.name, firstProduct?.category) || "Products";
+  const resolvedCategoryImage =
+    selectedCategory?.imageUrl ?? firstProduct?.categoryImageUrl ?? firstProduct?.imageUrl ?? null;
+  const orderedTopCategories = [
+    {
+      id: categoryId,
+      name: resolvedCategoryName,
+      imageUrl: resolvedCategoryImage,
+      count: 0,
+    },
+    ...topCategories.filter((category) => category.id !== categoryId),
+  ];
+
+  return {
+    branchId,
+    branchName: branchMeta.name,
+    categoryId,
+    categoryName: resolvedCategoryName,
+    topCategories: orderedTopCategories,
+    products,
+  };
+}
+
+const getCachedProductsPageData = unstable_cache(
+  async (categoryId: string, branchId: string, categoryName: string) =>
+    buildProductsPageData(categoryId, branchId, categoryName),
+  ["products-page-data-v1"],
+  { revalidate: 20 },
+);
+
 export async function getProductsPageData(
   categoryId: string,
   inputBranchId?: string,
@@ -1685,41 +1745,6 @@ export async function getProductsPageData(
   }
 
   const branchId = readText(inputBranchId) || DEFAULT_BRANCH_ID;
-  const [widgetSettings, branchMeta] = await Promise.all([
-    fetchJson("/globals/widget-settings?depth=1"),
-    fetchBranchMeta(branchId),
-  ]);
-  const [products, categories, topCategories] = await Promise.all([
-    fetchProductsForCategory(branchId, normalizedCategoryId),
-    fetchAllCategories(branchMeta.companyId),
-    fetchTopCategories(widgetSettings, branchId),
-  ]);
-
-  const selectedCategory =
-    categories.find((category) => category.id === normalizedCategoryId) ??
-    topCategories.find((category) => category.id === normalizedCategoryId) ??
-    null;
-  const firstProduct = products && products.length > 0 ? products[0] : null;
-  const resolvedCategoryName =
-    readText(inputCategoryName, selectedCategory?.name, firstProduct?.category) || "Products";
-  const resolvedCategoryImage =
-    selectedCategory?.imageUrl ?? firstProduct?.categoryImageUrl ?? firstProduct?.imageUrl ?? null;
-  const orderedTopCategories = [
-    {
-      id: normalizedCategoryId,
-      name: resolvedCategoryName,
-      imageUrl: resolvedCategoryImage,
-      count: 0,
-    },
-    ...topCategories.filter((category) => category.id !== normalizedCategoryId),
-  ];
-
-  return {
-    branchId,
-    branchName: branchMeta.name,
-    categoryId: normalizedCategoryId,
-    categoryName: resolvedCategoryName,
-    topCategories: orderedTopCategories,
-    products,
-  };
+  const categoryName = readText(inputCategoryName);
+  return getCachedProductsPageData(normalizedCategoryId, branchId, categoryName);
 }

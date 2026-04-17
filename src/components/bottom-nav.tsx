@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   readActiveBillSession,
@@ -14,6 +14,7 @@ import {
   MenuNavIcon,
 } from "@/components/menu-icons";
 import { useOrder } from "@/components/order-provider";
+import { prefetchCategoriesPageData } from "@/lib/session-cache";
 import styles from "./bottom-nav.module.css";
 
 const WAITER_COOLDOWN_SECONDS = 30;
@@ -36,6 +37,7 @@ function getActiveKey(pathname: string) {
 
 export function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { totalItems } = useOrder();
   const activeKey = getActiveKey(pathname);
   const [waiterCallState, setWaiterCallState] = useState<
@@ -113,6 +115,43 @@ export function BottomNav() {
       window.removeEventListener("storage", handleFocus);
     };
   }, [refreshWaiterEligibility]);
+
+  useEffect(() => {
+    const branchSession = readBranchSession();
+    const activeBranchId = branchSession?.branchId?.trim() ?? "";
+    const browserWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const runPrefetch = () => {
+      void router.prefetch("/");
+      void router.prefetch("/categories");
+      void router.prefetch("/kot");
+
+      if (activeBranchId) {
+        void prefetchCategoriesPageData(activeBranchId);
+      }
+    };
+
+    let idleHandle: number | null = null;
+    let timeoutHandle: number | null = null;
+
+    if (browserWindow.requestIdleCallback) {
+      idleHandle = browserWindow.requestIdleCallback(runPrefetch, { timeout: 1200 });
+    } else {
+      timeoutHandle = window.setTimeout(runPrefetch, 800);
+    }
+
+    return () => {
+      if (idleHandle !== null) {
+        browserWindow.cancelIdleCallback?.(idleHandle);
+      }
+      if (timeoutHandle !== null) {
+        window.clearTimeout(timeoutHandle);
+      }
+    };
+  }, [pathname, router]);
 
   const startWaiterCooldown = useCallback(() => {
     clearCooldownTimer();

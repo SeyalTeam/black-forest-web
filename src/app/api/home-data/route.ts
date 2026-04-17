@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const payload = await getHomePageData(branchId);
     return Response.json(payload, {
       headers: {
-        "Cache-Control": "no-store",
+        "Cache-Control": "public, max-age=5, stale-while-revalidate=30",
       },
     });
   } catch (error) {

@@ -33,6 +33,7 @@ export default function CategoriesPageClient({
   initialBranchId,
 }: CategoriesPageClientProps) {
   const router = useRouter();
+  const initialBranchName = initialPageData?.branchName ?? "";
   const [pageData, setPageData] = useState<CategoriesPageData | null>(initialPageData);
   const [branchId, setBranchId] = useState<string | null>(initialBranchId);
   const [searchQuery, setSearchQuery] = useState("");
@@ -57,14 +58,14 @@ export default function CategoriesPageClient({
       setBranchId(resolvedBranchId);
       writeBranchSession(
         resolvedBranchId,
-        initialPageData?.branchName || session?.branchName || "",
+        initialBranchName || session?.branchName || "",
       );
     });
 
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [initialBranchId]);
+  }, [initialBranchId, initialBranchName]);
 
   useEffect(() => {
     if (!branchId) return;
@@ -73,7 +74,7 @@ export default function CategoriesPageClient({
     const loadPageData = async () => {
       const cacheKey = getCategoriesCacheKey(branchId);
       const cached = readSessionCache<CategoriesPageData>(cacheKey);
-      const hasInitialData = pageData?.branchId === branchId;
+      const hasInitialData = initialPageData?.branchId === branchId;
       setErrorMessage("");
 
       if (cached) {
@@ -82,8 +83,9 @@ export default function CategoriesPageClient({
         return;
       }
 
-      if (hasInitialData && pageData) {
-        writeSessionCache(cacheKey, pageData);
+      if (hasInitialData && initialPageData) {
+        setPageData((current) => (current?.branchId === branchId ? current : initialPageData));
+        writeSessionCache(cacheKey, initialPageData);
         setIsLoading(false);
         return;
       }
@@ -117,7 +119,7 @@ export default function CategoriesPageClient({
     return () => {
       isDisposed = true;
     };
-  }, [branchId, pageData]);
+  }, [branchId, initialPageData]);
 
   useEffect(() => {
     if (!branchId || !pageData?.categories?.length) {

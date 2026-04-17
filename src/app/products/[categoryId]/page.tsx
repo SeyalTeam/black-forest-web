@@ -16,7 +16,7 @@ import {
   writeSessionCache,
 } from "@/lib/session-cache";
 
-const PRODUCTS_REFRESH_INTERVAL_MS = 5_000;
+const PRODUCTS_REFRESH_INTERVAL_MS = 30_000;
 
 function buildCardBackground(product: Product) {
   if (!product.imageUrl) {
@@ -82,9 +82,9 @@ export default function ProductsPage() {
       if (cached) {
         setPageData(cached);
         setIsLoading(false);
-      } else {
-        setIsLoading(true);
+        return;
       }
+      setIsLoading(true);
       setErrorMessage("");
 
       try {
@@ -96,9 +96,7 @@ export default function ProductsPage() {
           query.set("categoryName", categoryNameFromQuery);
         }
 
-        const response = await fetch(`/api/products-data?${query.toString()}`, {
-          cache: "no-store",
-        });
+        const response = await fetch(`/api/products-data?${query.toString()}`);
         if (!response.ok) {
           throw new Error("Failed to load products");
         }
@@ -151,9 +149,7 @@ export default function ProductsPage() {
           query.set("categoryName", categoryNameFromQuery);
         }
 
-        const response = await fetch(`/api/products-data?${query.toString()}`, {
-          cache: "no-store",
-        });
+        const response = await fetch(`/api/products-data?${query.toString()}`);
         if (!response.ok) {
           throw new Error("Failed to load products");
         }
@@ -219,6 +215,10 @@ export default function ProductsPage() {
 
   const previewItems = useMemo(
     () => cartItems.slice(Math.max(0, cartItems.length - 3)),
+    [cartItems],
+  );
+  const cartQuantityById = useMemo(
+    () => new Map(cartItems.map((item) => [item.id, item.quantity] as const)),
     [cartItems],
   );
   const summaryLabel = totalItems === 1 ? "1 item added" : `${totalItems} items added`;
@@ -293,9 +293,9 @@ export default function ProductsPage() {
               </span>
               <span className={styles.circleLabel}>All</span>
             </button>
-            {(pageData?.topCategories ?? []).map((category, index) => (
+            {(pageData?.topCategories ?? []).map((category) => (
               <Link
-                key={`${category.id}-${index}`}
+                key={category.id}
                 href={productHref(category.id, category.name, from)}
                 className={
                   category.id === pageData?.categoryId ? styles.circleItemActive : styles.circleItem
@@ -328,7 +328,7 @@ export default function ProductsPage() {
           {!isLoading && !errorMessage && visibleProducts.length > 0 ? (
             <div className={styles.sectionGrid}>
               {visibleProducts.map((product) => {
-                const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
+                const quantity = cartQuantityById.get(product.id) ?? 0;
                 const isOutOfStock = product.isOutOfStock;
 
                 return (

@@ -41,8 +41,8 @@ import {
 } from "@/lib/session-cache";
 
 const HOME_CACHE_KEY_PREFIX = "blackforest-order-web-home-data-v4:";
-const HOME_CACHE_TTL_MS = 10 * 1000;
-const HOME_REFRESH_INTERVAL_MS = 5_000;
+const HOME_CACHE_TTL_MS = 90 * 1000;
+const HOME_REFRESH_INTERVAL_MS = 30_000;
 const FAVORITE_ORDER_KEY_PREFIX = "blackforest-order-web-favorite-categories-order-v1:";
 const FAVORITE_PRODUCT_ORDER_KEY_PREFIX =
   "blackforest-order-web-favorite-products-order-v1:";
@@ -332,9 +332,7 @@ function writeCachedHomeData(branchId: string, data: HomePageData) {
 
 async function fetchHomeDataForBranch(targetBranchId: string) {
   const suffix = targetBranchId ? `?branchId=${encodeURIComponent(targetBranchId)}` : "";
-  const response = await fetch(`/api/home-data${suffix}`, {
-    cache: "no-store",
-  });
+  const response = await fetch(`/api/home-data${suffix}`);
   if (!response.ok) {
     throw new Error("Failed to load homepage data");
   }
@@ -506,9 +504,9 @@ export default function HomePageClient({
 
       if (cachedData || initialDataForBranch) {
         setIsLoading(false);
-      } else {
-        setIsLoading(true);
+        return;
       }
+      setIsLoading(true);
 
       try {
         const payload = await fetchHomeDataForBranch(branchId);

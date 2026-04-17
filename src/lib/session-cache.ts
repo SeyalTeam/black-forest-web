@@ -1,8 +1,9 @@
 import type { CategoriesPageData, ProductsPageData } from "@/lib/order-types";
 
-const PAGE_CACHE_TTL_MS = 10 * 1000;
+const PAGE_CACHE_TTL_MS = 90 * 1000;
 export const CATEGORIES_CACHE_KEY_PREFIX = "blackforest-order-web-categories-v4:";
 export const PRODUCTS_CACHE_KEY_PREFIX = "blackforest-order-web-products-v3:";
+const inflightRequests = new Map<string, Promise<unknown>>();
 
 type CachedPayload<T> = {
   savedAt?: number;
@@ -29,11 +30,28 @@ function buildProductsDataUrl({
 }
 
 async function fetchApiPayload<T>(url: string): Promise<T> {
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Request failed for ${url}`);
   }
   return (await response.json()) as T;
+}
+
+function runDedupedRequest<T>(requestKey: string, createRequest: () => Promise<T>) {
+  const existing = inflightRequests.get(requestKey);
+  if (existing) {
+    return existing as Promise<T>;
+  }
+
+  const request = createRequest().finally(() => {
+    const current = inflightRequests.get(requestKey);
+    if (current === request) {
+      inflightRequests.delete(requestKey);
+    }
+  });
+
+  inflightRequests.set(requestKey, request);
+  return request;
 }
 
 export function readSessionCache<T>(key: string): T | null {
@@ -102,8 +120,11 @@ export async function prefetchCategoriesPageData(branchId: string) {
   }
 
   try {
-    const payload = await fetchApiPayload<CategoriesPageData>(
-      `/api/categories-data?branchId=${encodeURIComponent(normalizedBranchId)}`,
+    const requestKey = `categories:${normalizedBranchId}`;
+    const payload = await runDedupedRequest(requestKey, () =>
+      fetchApiPayload<CategoriesPageData>(
+        `/api/categories-data?branchId=${encodeURIComponent(normalizedBranchId)}`,
+      ),
     );
     writeSessionCache(cacheKey, payload);
   } catch {
@@ -136,12 +157,15 @@ export async function prefetchProductsPageData({
   }
 
   try {
-    const payload = await fetchApiPayload<ProductsPageData>(
-      buildProductsDataUrl({
-        branchId: normalizedBranchId,
-        categoryId: normalizedCategoryId,
-        categoryName,
-      }),
+    const requestKey = `products:${normalizedBranchId}:${normalizedCategoryId}`;
+    const payload = await runDedupedRequest(requestKey, () =>
+      fetchApiPayload<ProductsPageData>(
+        buildProductsDataUrl({
+          branchId: normalizedBranchId,
+          categoryId: normalizedCategoryId,
+          categoryName,
+        }),
+      ),
     );
     writeSessionCache(cacheKey, payload);
   } catch {

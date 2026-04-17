@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const payload = await getProductsPageData(categoryId, branchId, categoryName);
     return Response.json(payload, {
       headers: {
-        "Cache-Control": "no-store",
+        "Cache-Control": "public, max-age=20, stale-while-revalidate=120",
       },
     });
   } catch (error) {
