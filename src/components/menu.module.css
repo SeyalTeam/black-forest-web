@@ -619,31 +619,31 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 20px;
+  min-height: 22px;
   max-width: calc(100% - 24px);
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: rgba(255, 255, 255, 0.62);
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(70, 70, 70, 0.34);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  color: rgba(255, 255, 255, 0.82);
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.42);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: none;
-  opacity: 0.88;
-  mix-blend-mode: screen;
+  opacity: 0.95;
 }
 
 .productPrepIcon {
   width: 11px;
   height: 11px;
   flex-shrink: 0;
-  opacity: 0.8;
+  opacity: 0.9;
 }
 
 .productArtLabel {
