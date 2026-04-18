@@ -267,7 +267,7 @@ function buildCardBackground(product: Product) {
 }
 
 function formatPreparationLabel(preparationTime: number | null | undefined) {
-  if (!Number.isFinite(preparationTime)) {
+  if (typeof preparationTime !== "number" || !Number.isFinite(preparationTime)) {
     return null;
   }
 
