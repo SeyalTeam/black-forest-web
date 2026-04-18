@@ -163,24 +163,25 @@ async function resolveLiveSectionsForTableNumber({
   });
 }
 
-async function isLiveTableOccupied({
+function normalizeSectionKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+async function findOccupiedSectionsForTable({
   tableNumber,
-  sectionName,
   branchId,
   token,
 }: {
   tableNumber: string;
-  sectionName: string;
   branchId: string;
   token: string;
 }) {
   const lookupParams = new URLSearchParams({
     "where[status][in]": ACTIVE_BILL_STATUSES,
     "where[tableDetails.tableNumber][equals]": tableNumber,
-    "where[tableDetails.section][equals]": sectionName,
     "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
     "where[branch][equals]": branchId,
-    limit: "1",
+    limit: "100",
     depth: "0",
   });
 
@@ -191,11 +192,19 @@ async function isLiveTableOccupied({
     cache: "no-store",
   });
   if (!response.ok) {
-    return false;
+    return new Set<string>();
   }
 
   const payload = (await response.json()) as BillingLookupResponse;
-  return Boolean(payload.docs?.length);
+  const occupiedSections = new Set<string>();
+
+  for (const doc of payload.docs ?? []) {
+    const sectionName = toTrimmedText(readRecord(doc.tableDetails)?.section);
+    if (!sectionName) continue;
+    occupiedSections.add(normalizeSectionKey(sectionName));
+  }
+
+  return occupiedSections;
 }
 
 async function findExistingOpenBill({
@@ -275,14 +284,14 @@ async function resolveTableTarget({
     };
   }
 
+  const occupiedSections = await findOccupiedSectionsForTable({
+    tableNumber,
+    branchId,
+    token,
+  });
+
   for (const liveSection of liveSections) {
-    const occupied = await isLiveTableOccupied({
-      tableNumber,
-      sectionName: liveSection,
-      branchId,
-      token,
-    });
-    if (!occupied) {
+    if (!occupiedSections.has(normalizeSectionKey(liveSection))) {
       return {
         tableNumber,
         section: liveSection,
@@ -548,10 +557,18 @@ export async function POST(request: NextRequest) {
       return Response.json({ message: "Table number is required" }, { status: 400 });
     }
 
-    const productMetadataById = await fetchProductMetadataMap({
-      items: incomingItems,
-      token,
+    const requiresMetadataLookup = incomingItems.some((item) => {
+      const category = toTrimmedText(item.category);
+      const categoryId = toTrimmedText(item.categoryId);
+      const department = toTrimmedText(item.department);
+      return !category || !categoryId || !department;
     });
+    const productMetadataById = requiresMetadataLookup
+      ? await fetchProductMetadataMap({
+          items: incomingItems,
+          token,
+        })
+      : new Map<string, ProductMetadata>();
 
     const billingItems = incomingItems
       .map((item) =>
