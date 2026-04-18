@@ -137,6 +137,16 @@ function readOptionalNumber(value: unknown): number | null {
   return null;
 }
 
+function readPreparationMinutes(value: unknown): number | null {
+  const minutes = readOptionalNumber(value);
+  if (minutes === null) {
+    return null;
+  }
+
+  const roundedMinutes = Math.round(minutes);
+  return roundedMinutes >= 0 ? roundedMinutes : null;
+}
+
 function readText(...values: unknown[]) {
   for (const value of values) {
     const text = value?.toString().trim() ?? "";
@@ -808,6 +818,58 @@ function readBranchScopedPrice(product: DynamicMap, branchId?: string) {
   return price;
 }
 
+function readPreparationTimeFromNode(node: unknown) {
+  const map = toMap(node);
+  const directCandidates = [
+    map?.preparingTime,
+    map?.preparationTime,
+    map?.preparingMinutes,
+    map?.preparationMinutes,
+    map?.prepTime,
+    map?.prepMinutes,
+    map?.estimatedPreparationTime,
+    map?.estimatedPrepTime,
+  ];
+
+  for (const candidate of directCandidates) {
+    const preparationTime = readPreparationMinutes(candidate);
+    if (preparationTime !== null) {
+      return preparationTime;
+    }
+  }
+
+  const nestedKeys = [
+    "preparingTime",
+    "preparationTime",
+    "preparingMinutes",
+    "preparationMinutes",
+    "prepTime",
+    "prepMinutes",
+    "estimatedPreparationTime",
+    "estimatedPrepTime",
+  ];
+  for (const key of nestedKeys) {
+    const preparationTime = readPreparationMinutes(findByKey(node, key));
+    if (preparationTime !== null) {
+      return preparationTime;
+    }
+  }
+
+  return null;
+}
+
+function readBranchScopedPreparationTime(product: DynamicMap, branchId?: string) {
+  if (branchId) {
+    const override = readBranchOverride(product, branchId);
+    const overridePreparationTime = readPreparationTimeFromNode(override);
+    if (overridePreparationTime !== null) {
+      return overridePreparationTime;
+    }
+  }
+
+  return readPreparationTimeFromNode(product);
+}
+
 function normalizeProduct(productNode: unknown, branchId?: string): Product | null {
   const map = toMap(productNode);
   if (!map) return null;
@@ -828,6 +890,7 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
   const isVeg = toBool(map.isVeg ?? map.is_veg ?? map.veg);
   const imageUrl = readProductImage(map) ?? category?.imageUrl ?? "";
   const price = readBranchScopedPrice(map, branchId);
+  const preparationTime = readBranchScopedPreparationTime(map, branchId);
   const inventoryQuantity = readInventoryQuantity(map);
   const explicitOutOfStock = readExplicitOutOfStock(map, branchId);
   const isOutOfStock =
@@ -848,6 +911,7 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
     isOutOfStock,
     hasExplicitOutOfStock: explicitOutOfStock !== null,
     isVeg,
+    preparationTime,
   };
 }
 

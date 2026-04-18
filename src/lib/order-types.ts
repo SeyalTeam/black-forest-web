@@ -13,6 +13,7 @@ export type Product = {
   isOutOfStock: boolean;
   hasExplicitOutOfStock?: boolean;
   isVeg: boolean;
+  preparationTime: number | null;
 };
 
 export type CartItem = Product & {

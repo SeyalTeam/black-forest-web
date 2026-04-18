@@ -5,7 +5,13 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { readBranchSession } from "@/components/branch-session";
 import { BottomNav } from "@/components/bottom-nav";
-import { BackIcon, ChevronRightIcon, SearchIcon, VegIcon } from "@/components/menu-icons";
+import {
+  BackIcon,
+  ChevronRightIcon,
+  PrepTimeIcon,
+  SearchIcon,
+  VegIcon,
+} from "@/components/menu-icons";
 import styles from "@/components/menu.module.css";
 import { productAvatarLabel, useOrder } from "@/components/order-provider";
 import type { Product, ProductsPageData } from "@/lib/order-types";
@@ -35,6 +41,19 @@ function productHref(categoryId: string, categoryName: string, from: string) {
     from,
   });
   return `/products/${encodeURIComponent(categoryId)}?${query.toString()}`;
+}
+
+function formatPreparationLabel(preparationTime: number | null | undefined) {
+  if (!Number.isFinite(preparationTime)) {
+    return null;
+  }
+
+  const minutes = Math.round(preparationTime);
+  if (minutes <= 0) {
+    return null;
+  }
+
+  return `Prep: ${minutes} min${minutes === 1 ? "" : "s"}`;
 }
 
 export default function ProductsPage() {
@@ -330,6 +349,7 @@ export default function ProductsPage() {
               {visibleProducts.map((product) => {
                 const quantity = cartQuantityById.get(product.id) ?? 0;
                 const isOutOfStock = product.isOutOfStock;
+                const preparationLabel = formatPreparationLabel(product.preparationTime);
 
                 return (
                   <article key={product.id} className={styles.productCard}>
@@ -343,6 +363,12 @@ export default function ProductsPage() {
                       <span className={styles.productArtLabel}>
                         {product.imageUrl ? "" : productAvatarLabel(product.name)}
                       </span>
+                      {preparationLabel ? (
+                        <span className={styles.productPrepBadge}>
+                          <PrepTimeIcon className={styles.productPrepIcon} />
+                          {preparationLabel}
+                        </span>
+                      ) : null}
                       {isOutOfStock ? (
                         <span className={styles.productArtStockOverlay}>OUT OF STOCK</span>
                       ) : null}

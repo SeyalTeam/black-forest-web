@@ -22,6 +22,7 @@ import {
   MicIcon,
   Move4WayIcon,
   PinIcon,
+  PrepTimeIcon,
   ProfileIcon,
   SearchIcon,
   VegIcon,
@@ -263,6 +264,19 @@ function buildCardBackground(product: Product) {
   return {
     backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.16)), url("${safeImageUrl}")`,
   };
+}
+
+function formatPreparationLabel(preparationTime: number | null | undefined) {
+  if (!Number.isFinite(preparationTime)) {
+    return null;
+  }
+
+  const minutes = Math.round(preparationTime);
+  if (minutes <= 0) {
+    return null;
+  }
+
+  return `Prep: ${minutes} min${minutes === 1 ? "" : "s"}`;
 }
 
 function productHref(categoryId: string, categoryName: string, from: "home" | "categories") {
@@ -1343,6 +1357,7 @@ export default function HomePageClient({
               {favoriteProducts.map(({ key, product }) => {
                 const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
                 const isOutOfStock = product.isOutOfStock;
+                const preparationLabel = formatPreparationLabel(product.preparationTime);
 
                 return (
                   <article
@@ -1377,6 +1392,12 @@ export default function HomePageClient({
                       <span className={styles.productArtLabel}>
                         {product.imageUrl ? "" : productAvatarLabel(product.name)}
                       </span>
+                      {preparationLabel ? (
+                        <span className={styles.productPrepBadge}>
+                          <PrepTimeIcon className={styles.productPrepIcon} />
+                          {preparationLabel}
+                        </span>
+                      ) : null}
                       {isOutOfStock ? (
                         <span className={styles.productArtStockOverlay}>OUT OF STOCK</span>
                       ) : null}

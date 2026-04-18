@@ -611,6 +611,35 @@
   transform: scale(1.05);
 }
 
+.productPrepBadge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  max-width: calc(100% - 20px);
+  padding: 0 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(72, 109, 232, 0.95), rgba(48, 80, 201, 0.95));
+  box-shadow: 0 8px 20px rgba(33, 61, 153, 0.34);
+  color: #f6f8ff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.productPrepIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
 .productArtLabel {
   position: absolute;
   inset: 0;

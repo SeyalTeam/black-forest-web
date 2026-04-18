@@ -429,6 +429,35 @@ export function CardPaymentIcon({ className }: IconProps) {
   );
 }
 
+export function PrepTimeIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <circle
+        cx="12"
+        cy="13"
+        r="6.8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M12 13V9.8M12 13l2.1 1.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M9.4 3.8h5.2M12 3.8v1.6M17 6.6l1.5-1.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function VegIcon({
   isVeg,
   className,
