@@ -30,11 +30,30 @@ async function readResponsePayload(response: Response) {
   }
 }
 
+function withWritePermissionHint(status: number, payload: Record<string, unknown>) {
+  if (status !== 403) {
+    return payload;
+  }
+
+  const hasBillingToken = Boolean(process.env.BLACKFOREST_BILLING_TOKEN?.trim());
+  const hasApiToken = Boolean(process.env.BLACKFOREST_API_TOKEN?.trim());
+  if (hasBillingToken || !hasApiToken) {
+    return payload;
+  }
+
+  const message =
+    typeof payload.message === "string" ? payload.message.trim() : "Forbidden";
+  return {
+    ...payload,
+    message: `${message} Configure BLACKFOREST_BILLING_TOKEN with billing write access in Vercel, or grant write scope to BLACKFOREST_API_TOKEN.`,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const token =
-      process.env.BLACKFOREST_API_TOKEN?.trim() ||
       process.env.BLACKFOREST_BILLING_TOKEN?.trim() ||
+      process.env.BLACKFOREST_API_TOKEN?.trim() ||
       process.env.BLACKFOREST_API_BEARER_TOKEN?.trim() ||
       "";
 
@@ -42,7 +61,7 @@ export async function POST(request: NextRequest) {
       return Response.json(
         {
           message:
-            "Waiter call is not enabled yet. Add BLACKFOREST_API_TOKEN in Vercel so the website can alert billing.",
+            "Waiter call is not enabled yet. Add BLACKFOREST_BILLING_TOKEN (or BLACKFOREST_API_TOKEN) in Vercel so the website can alert billing.",
         },
         { status: 503 },
       );
@@ -81,7 +100,10 @@ export async function POST(request: NextRequest) {
       cache: "no-store",
     });
 
-    const upstreamPayload = await readResponsePayload(upstreamResponse);
+    const upstreamPayload = withWritePermissionHint(
+      upstreamResponse.status,
+      await readResponsePayload(upstreamResponse),
+    );
     return Response.json(upstreamPayload, { status: upstreamResponse.status });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to call waiter";

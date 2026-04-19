@@ -27,11 +27,25 @@ async function readResponseMessage(response: Response) {
   }
 }
 
+function withWritePermissionHint(status: number, message: string) {
+  if (status !== 403) {
+    return message;
+  }
+
+  const hasBillingToken = Boolean(process.env.BLACKFOREST_BILLING_TOKEN?.trim());
+  const hasApiToken = Boolean(process.env.BLACKFOREST_API_TOKEN?.trim());
+  if (!hasBillingToken && hasApiToken) {
+    return `${message} Configure BLACKFOREST_BILLING_TOKEN with billing write access in Vercel, or grant write scope to BLACKFOREST_API_TOKEN.`;
+  }
+
+  return message;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const token =
-      process.env.BLACKFOREST_API_TOKEN?.trim() ||
       process.env.BLACKFOREST_BILLING_TOKEN?.trim() ||
+      process.env.BLACKFOREST_API_TOKEN?.trim() ||
       process.env.BLACKFOREST_API_BEARER_TOKEN?.trim() ||
       "";
 
@@ -39,7 +53,7 @@ export async function POST(request: NextRequest) {
       return Response.json(
         {
           message:
-            "Billing is not enabled yet. Add BLACKFOREST_API_TOKEN in Vercel so the website can complete bills.",
+            "Billing is not enabled yet. Add BLACKFOREST_BILLING_TOKEN (or BLACKFOREST_API_TOKEN) in Vercel so the website can complete bills.",
         },
         { status: 503 },
       );
@@ -74,7 +88,10 @@ export async function POST(request: NextRequest) {
     });
 
     if (!writeResponse.ok) {
-      const message = await readResponseMessage(writeResponse);
+      const message = withWritePermissionHint(
+        writeResponse.status,
+        await readResponseMessage(writeResponse),
+      );
       return Response.json({ message }, { status: writeResponse.status });
     }
 
