@@ -25,6 +25,7 @@ import {
 } from "@/components/menu-icons";
 import { useOrder } from "@/components/order-provider";
 import type { BillSummaryData, BillSummaryItem } from "@/lib/order-types";
+import { BILLING_DISABLED_MESSAGE, BILLING_ENABLED } from "@/lib/billing-config";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import styles from "./kot-shell.module.css";
 
@@ -495,16 +496,19 @@ export default function KotPage() {
     (item) => normalizeItemStatus(item.status) !== "delivered",
   );
   const canCompleteBill =
+    BILLING_ENABLED &&
     Boolean(matchingPreviousBill?.billId) &&
     previousBillItems.length > 0 &&
     undeliveredPreviousItems.length === 0;
-  const billDisabledReason = !matchingPreviousBill?.billId
-    ? "Bill is not ready yet."
-    : undeliveredPreviousItems.length > 0
-      ? `Bill will be enabled only after all items are delivered. Waiting on ${formatBillBlockingItems(
-          undeliveredPreviousItems,
-        )}.`
-      : "";
+  const billDisabledReason = !BILLING_ENABLED
+    ? BILLING_DISABLED_MESSAGE
+    : !matchingPreviousBill?.billId
+      ? "Bill is not ready yet."
+      : undeliveredPreviousItems.length > 0
+        ? `Bill will be enabled only after all items are delivered. Waiting on ${formatBillBlockingItems(
+            undeliveredPreviousItems,
+          )}.`
+        : "";
   const normalizedCustomerPhoneDraft = normalizePhone(customerPhoneDraft);
   const hasExistingCustomerDetails =
     customerName.trim().length > 0 || customerPhone.trim().length > 0;
@@ -1179,13 +1183,13 @@ export default function KotPage() {
                       type="button"
                       className={isActive ? styles.paymentButtonActive : styles.paymentButton}
                       onClick={() => {
-                        if (isSubmittingBill) {
+                        if (isSubmittingBill || !BILLING_ENABLED) {
                           return;
                         }
                         setSelectedPaymentMethod(option.id);
                         setBillError("");
                       }}
-                      disabled={isSubmittingBill}
+                      disabled={isSubmittingBill || !BILLING_ENABLED}
                     >
                       <Icon className={styles.paymentIcon} />
                       {option.label}

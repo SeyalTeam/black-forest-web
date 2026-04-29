@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { BILLING_DISABLED_MESSAGE, BILLING_ENABLED } from "@/lib/billing-config";
 
 const API_BASE = "https://blackforest.vseyal.com/api";
 
@@ -29,6 +30,10 @@ async function readResponseMessage(response: Response) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!BILLING_ENABLED) {
+      return Response.json({ message: BILLING_DISABLED_MESSAGE }, { status: 503 });
+    }
+
     const token =
       process.env.BLACKFOREST_API_TOKEN?.trim() ||
       process.env.BLACKFOREST_BILLING_TOKEN?.trim() ||

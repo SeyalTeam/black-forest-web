@@ -20,6 +20,7 @@ import {
   UpiIcon,
   VegIcon,
 } from "@/components/menu-icons";
+import { BILLING_DISABLED_MESSAGE, BILLING_ENABLED } from "@/lib/billing-config";
 import type { BillSummaryData } from "@/lib/order-types";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
 import styles from "./page.module.css";
@@ -213,6 +214,11 @@ export default function BillSummaryPage() {
   };
 
   const completeBill = async () => {
+    if (!BILLING_ENABLED) {
+      setBillError(BILLING_DISABLED_MESSAGE);
+      return;
+    }
+
     if (!pageData?.billId) {
       setBillError("Bill is not ready yet.");
       return;
@@ -364,13 +370,13 @@ export default function BillSummaryPage() {
                   type="button"
                   className={isActive ? styles.paymentButtonActive : styles.paymentButton}
                   onClick={() => {
-                    if (isSubmittingBill) {
+                    if (isSubmittingBill || !BILLING_ENABLED) {
                       return;
                     }
                     setSelectedPaymentMethod(option.id);
                     setBillError("");
                   }}
-                  disabled={isSubmittingBill}
+                  disabled={isSubmittingBill || !BILLING_ENABLED}
                 >
                   <Icon className={styles.paymentIcon} />
                   {option.label}
