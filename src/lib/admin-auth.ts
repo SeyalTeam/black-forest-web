@@ -1,4 +1,4 @@
-const API_BASE = "https://blackforest.vseyal.com/api";
+const API_BASE = "https://blackforest1.vseyal.com/api";
 
 type DynamicMap = Record<string, unknown>;
 

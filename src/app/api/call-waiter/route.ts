@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-const API_BASE = "https://blackforest.vseyal.com/api";
+const API_BASE = "https://blackforest1.vseyal.com/api";
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";

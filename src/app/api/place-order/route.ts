@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-const API_BASE = "https://blackforest.vseyal.com/api";
+const API_BASE = "https://blackforest1.vseyal.com/api";
 const SHARED_TABLE_SECTION = "Shared Tables";
 const ACTIVE_BILL_STATUSES = "pending,ordered,confirmed,prepared,delivered";
 

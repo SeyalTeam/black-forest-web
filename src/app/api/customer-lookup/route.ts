@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-const API_BASE = "https://blackforest.vseyal.com/api";
+const API_BASE = "https://blackforest1.vseyal.com/api";
 
 function toMap(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)

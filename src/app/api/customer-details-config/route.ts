@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-const API_BASE = "https://blackforest.vseyal.com/api";
+const API_BASE = "https://blackforest1.vseyal.com/api";
 
 type CustomerDetailsConfig = {
   showCustomerDetails: boolean;
