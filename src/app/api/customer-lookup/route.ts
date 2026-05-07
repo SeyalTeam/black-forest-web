@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { resolveApiTokenForBranch } from "@/lib/api-token";
 
 const API_BASE = "https://blackforest1.vseyal.com/api";
 
@@ -647,17 +648,13 @@ export async function GET(request: NextRequest) {
       return Response.json({ message: "Enter a valid phone number" }, { status: 400 });
     }
 
-    const token =
-      process.env.BLACKFOREST_API_TOKEN?.trim() ||
-      process.env.BLACKFOREST_BILLING_TOKEN?.trim() ||
-      process.env.BLACKFOREST_API_BEARER_TOKEN?.trim() ||
-      "";
+    const token = resolveApiTokenForBranch(branchId);
 
     if (!token) {
       return Response.json(
         {
           message:
-            "Customer lookup is not enabled yet. Add BLACKFOREST_API_TOKEN in Vercel so the website can read customer details.",
+            "Customer lookup is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in Vercel so the website can read customer details.",
         },
         { status: 503 },
       );

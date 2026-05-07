@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { resolveApiTokenForBranch } from "@/lib/api-token";
 
 const API_BASE = "https://blackforest1.vseyal.com/api";
 
@@ -100,11 +101,7 @@ export async function GET(request: NextRequest) {
       return Response.json(defaultConfig);
     }
 
-    const token =
-      process.env.BLACKFOREST_API_TOKEN?.trim() ||
-      process.env.BLACKFOREST_BILLING_TOKEN?.trim() ||
-      process.env.BLACKFOREST_API_BEARER_TOKEN?.trim() ||
-      "";
+    const token = resolveApiTokenForBranch(branchId);
 
     if (!token) {
       return Response.json(defaultConfig);

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { resolveApiTokenForBranch } from "@/lib/api-token";
 
 const API_BASE = "https://blackforest1.vseyal.com/api";
 
@@ -32,22 +33,6 @@ async function readResponsePayload(response: Response) {
 
 export async function POST(request: NextRequest) {
   try {
-    const token =
-      process.env.BLACKFOREST_API_TOKEN?.trim() ||
-      process.env.BLACKFOREST_BILLING_TOKEN?.trim() ||
-      process.env.BLACKFOREST_API_BEARER_TOKEN?.trim() ||
-      "";
-
-    if (!token) {
-      return Response.json(
-        {
-          message:
-            "Waiter call is not enabled yet. Add BLACKFOREST_API_TOKEN in Vercel so the website can alert billing.",
-        },
-        { status: 503 },
-      );
-    }
-
     const rawBody = (await request.json()) as unknown;
     const body = toPayload(rawBody);
 
@@ -58,6 +43,17 @@ export async function POST(request: NextRequest) {
 
     if (!branchId) {
       return Response.json({ message: "Branch id is required" }, { status: 400 });
+    }
+
+    const token = resolveApiTokenForBranch(branchId);
+    if (!token) {
+      return Response.json(
+        {
+          message:
+            "Waiter call is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in Vercel so the website can alert billing.",
+        },
+        { status: 503 },
+      );
     }
 
     const payload: Record<string, string> = { branchId };

@@ -236,6 +236,7 @@ export default function BillSummaryPage() {
         body: JSON.stringify({
           billId: pageData.billId,
           paymentMethod: selectedPaymentMethod,
+          branchId,
         }),
       });
 

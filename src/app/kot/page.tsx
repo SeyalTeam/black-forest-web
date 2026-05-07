@@ -824,6 +824,7 @@ export default function KotPage() {
         body: JSON.stringify({
           billId: matchingPreviousBill.billId,
           paymentMethod: selectedPaymentMethod,
+          branchId,
         }),
       });
 

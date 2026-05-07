@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { BILLING_DISABLED_MESSAGE, BILLING_ENABLED } from "@/lib/billing-config";
+import { resolveApiTokenForBranch } from "@/lib/api-token";
 
 const API_BASE = "https://blackforest1.vseyal.com/api";
 
@@ -34,35 +35,32 @@ export async function POST(request: NextRequest) {
       return Response.json({ message: BILLING_DISABLED_MESSAGE }, { status: 503 });
     }
 
-    const token =
-      process.env.BLACKFOREST_API_TOKEN?.trim() ||
-      process.env.BLACKFOREST_BILLING_TOKEN?.trim() ||
-      process.env.BLACKFOREST_API_BEARER_TOKEN?.trim() ||
-      "";
-
-    if (!token) {
-      return Response.json(
-        {
-          message:
-            "Billing is not enabled yet. Add BLACKFOREST_API_TOKEN in Vercel so the website can complete bills.",
-        },
-        { status: 503 },
-      );
-    }
-
     const body = (await request.json()) as {
       billId?: string;
       paymentMethod?: string;
+      branchId?: string;
     };
 
     const billId = toTrimmedText(body.billId);
     const paymentMethod = normalizePaymentMethod(body.paymentMethod);
+    const branchId = toTrimmedText(body.branchId);
 
     if (!billId) {
       return Response.json({ message: "Bill id is required" }, { status: 400 });
     }
     if (!paymentMethod) {
       return Response.json({ message: "Select a payment method" }, { status: 400 });
+    }
+
+    const token = resolveApiTokenForBranch(branchId);
+    if (!token) {
+      return Response.json(
+        {
+          message:
+            "Billing is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in Vercel so the website can complete bills.",
+        },
+        { status: 503 },
+      );
     }
 
     const writeResponse = await fetch(`${API_BASE}/billings/${billId}?depth=0`, {
