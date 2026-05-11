@@ -57,6 +57,13 @@ type CustomerLookupResult = {
   bills: CustomerLookupBill[];
 };
 
+type CustomerLookupLiteResult = {
+  exists: boolean;
+  customerName: string;
+  phoneNumber: string;
+  skipped: boolean;
+};
+
 const defaultCustomerConfig: CustomerDetailsConfig = {
   showCustomerDetails: true,
   allowSkip: true,
@@ -86,24 +93,13 @@ function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function toCount(value: unknown) {
+function toNumber(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) {
-    return Math.max(0, Math.trunc(value));
-  }
-  if (typeof value === "string") {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
-  }
-  return 0;
-}
-
-function toMoney(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Math.max(0, value);
+    return value;
   }
   if (typeof value === "string") {
     const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
 }
@@ -116,7 +112,6 @@ function normalizeLookupBill(raw: unknown) {
 
   const tableDetails = toMap(bill.tableDetails);
   const customerDetails = toMap(bill.customerDetails) ?? toMap(bill.customer);
-
   return {
     id:
       toTrimmedText(bill.id) ||
@@ -127,9 +122,8 @@ function normalizeLookupBill(raw: unknown) {
       toTrimmedText(bill.billNumber) ||
       toTrimmedText(bill.id),
     status: toTrimmedText(bill.status).toLowerCase() || "completed",
-    paymentMethod:
-      toTrimmedText(bill.paymentMethod ?? bill.paymentType).toLowerCase(),
-    totalAmount: toMoney(
+    paymentMethod: toTrimmedText(bill.paymentMethod ?? bill.paymentType).toLowerCase(),
+    totalAmount: toNumber(
       bill.totalAmount ?? bill.grossAmount ?? bill.finalAmount ?? bill.subtotal ?? bill.amount,
     ),
     createdAt: toTrimmedText(bill.createdAt),
@@ -139,55 +133,62 @@ function normalizeLookupBill(raw: unknown) {
   } satisfies CustomerLookupBill;
 }
 
-function normalizeCustomerLookupPayload(
-  payload: unknown,
-  fallbackPhone: string,
-  limit: number,
-) {
+function normalizeCustomerLookupPayload(payload: unknown, fallbackPhone: string, limit: number) {
   const data = toMap(payload) ?? {};
   const customer = toMap(data.customer);
   const billingSummary = toMap(data.billingSummary);
-
-  const exists =
-    typeof data.exists === "boolean"
-      ? data.exists
-      : Boolean(
-          toTrimmedText(customer?.name) ||
-            toCount(billingSummary?.totalBills ?? data.totalBills) > 0,
-        );
+  const exists = data.exists === true;
   const isNewCustomer =
     typeof data.isNewCustomer === "boolean" ? data.isNewCustomer : !exists;
-  const skipped = data.skipped === true;
 
   const bills = asList(data.recentBills ?? data.bills)
     .map((entry) => normalizeLookupBill(entry))
     .filter((entry): entry is CustomerLookupBill => Boolean(entry))
     .slice(0, limit);
 
-  const totalBills = toCount(
-    billingSummary?.totalBills ?? billingSummary?.billCount ?? data.totalBills ?? data.billCount,
+  const totalBills = Math.max(
+    0,
+    Math.trunc(
+      toNumber(
+        billingSummary?.totalBills ??
+          billingSummary?.billCount ??
+          data.totalBills ??
+          data.billCount,
+      ),
+    ),
   );
-  const totalAmount = toMoney(
+  const parsedTotalAmount = toNumber(
     billingSummary?.totalAmount ??
       billingSummary?.amount ??
       data.totalAmount ??
       data.totalSpent,
   );
-  const fallbackAmount =
-    totalAmount > 0
-      ? totalAmount
-      : bills.reduce((sum, bill) => sum + toMoney(bill.totalAmount), 0);
-  const name = exists && !skipped ? toTrimmedText(customer?.name ?? data.name) : "";
-  const phoneNumber = toTrimmedText(customer?.phoneNumber ?? data.phoneNumber) || fallbackPhone;
+  const computedAmount = bills.reduce((sum, bill) => sum + toNumber(bill.totalAmount), 0);
+  const totalAmount = parsedTotalAmount > 0 ? parsedTotalAmount : computedAmount;
 
   return {
-    name,
-    phoneNumber,
+    name: exists
+      ? toTrimmedText(customer?.name ?? data.customerName ?? data.name)
+      : "",
+    phoneNumber: toTrimmedText(customer?.phoneNumber ?? data.phoneNumber) || fallbackPhone,
     totalBills: isNewCustomer ? 0 : totalBills || bills.length,
-    totalAmount: isNewCustomer ? 0 : Number(fallbackAmount.toFixed(2)),
-    isNewCustomer: skipped ? true : isNewCustomer,
+    totalAmount: isNewCustomer ? 0 : Number(totalAmount.toFixed(2)),
+    isNewCustomer,
     bills,
   } satisfies CustomerLookupResult;
+}
+
+function normalizeCustomerLookupLitePayload(payload: unknown, fallbackPhone: string) {
+  const data = toMap(payload) ?? {};
+  const customer = toMap(data.customer);
+  const exists = data.exists === true;
+
+  return {
+    exists,
+    customerName: exists ? toTrimmedText(data.customerName ?? customer?.name) : "",
+    phoneNumber: toTrimmedText(data.phoneNumber ?? customer?.phoneNumber) || fallbackPhone,
+    skipped: data.skipped === true,
+  } satisfies CustomerLookupLiteResult;
 }
 
 function formatMoney(amount: number) {
@@ -753,6 +754,25 @@ export default function KotPage() {
     [branchId],
   );
 
+  const fetchCustomerLookupLite = useCallback(async (phone: string) => {
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      return null;
+    }
+
+    const response = await fetch(
+      `/api/billing/customer-lookup-lite?phoneNumber=${encodeURIComponent(normalizedPhone)}`,
+      { cache: "no-store" },
+    );
+
+    const payload = (await response.json()) as Record<string, unknown> & { message?: string };
+    if (!response.ok) {
+      throw new Error(payload.message || "Unable to fetch customer details");
+    }
+
+    return normalizeCustomerLookupLitePayload(payload, normalizedPhone);
+  }, []);
+
   const openCustomerModal = () => {
     setCustomerPhoneDraft(customerPhone);
     setCustomerNameDraft(customerName);
@@ -1007,12 +1027,12 @@ export default function KotPage() {
     lookupDebounceRef.current = window.setTimeout(() => {
       void (async () => {
         try {
-          const payload = await fetchCustomerLookup(normalizedPhone, 20);
+          const payload = await fetchCustomerLookupLite(normalizedPhone);
           if (isDisposed || normalizePhone(customerPhoneDraft) !== normalizedPhone) {
             return;
           }
-          if (payload?.name) {
-            setCustomerNameDraft((current) => current.trim() || payload.name);
+          if (payload?.exists && payload.customerName) {
+            setCustomerNameDraft((current) => current.trim() || payload.customerName);
           }
         } catch (error) {
           if (isDisposed || normalizePhone(customerPhoneDraft) !== normalizedPhone) {
@@ -1036,7 +1056,7 @@ export default function KotPage() {
         lookupDebounceRef.current = null;
       }
     };
-  }, [customerPhoneDraft, fetchCustomerLookup, isCustomerModalOpen]);
+  }, [customerPhoneDraft, fetchCustomerLookupLite, isCustomerModalOpen]);
 
   const submitOrder = async () => {
     const trimmedTableNumber = sharedTableNumber.trim();
