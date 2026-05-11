@@ -72,6 +72,124 @@ function normalizePhone(value: string) {
   return value.replace(/\D/g, "");
 }
 
+function toMap(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asList(value: unknown) {
+  return Array.isArray(value) ? value : [];
+}
+
+function toTrimmedText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function toCount(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.trunc(value));
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+  }
+  return 0;
+}
+
+function toMoney(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, value);
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  }
+  return 0;
+}
+
+function normalizeLookupBill(raw: unknown) {
+  const bill = toMap(raw);
+  if (!bill) {
+    return null;
+  }
+
+  const tableDetails = toMap(bill.tableDetails);
+  const customerDetails = toMap(bill.customerDetails) ?? toMap(bill.customer);
+
+  return {
+    id:
+      toTrimmedText(bill.id) ||
+      toTrimmedText(bill._id) ||
+      toTrimmedText(bill.invoiceNumber),
+    invoiceNumber:
+      toTrimmedText(bill.invoiceNumber) ||
+      toTrimmedText(bill.billNumber) ||
+      toTrimmedText(bill.id),
+    status: toTrimmedText(bill.status).toLowerCase() || "completed",
+    paymentMethod:
+      toTrimmedText(bill.paymentMethod ?? bill.paymentType).toLowerCase(),
+    totalAmount: toMoney(
+      bill.totalAmount ?? bill.grossAmount ?? bill.finalAmount ?? bill.subtotal ?? bill.amount,
+    ),
+    createdAt: toTrimmedText(bill.createdAt),
+    tableNumber: toTrimmedText(tableDetails?.tableNumber ?? bill.tableNumber),
+    section: toTrimmedText(tableDetails?.section ?? bill.section),
+    customerName: toTrimmedText(customerDetails?.name ?? bill.customerName),
+  } satisfies CustomerLookupBill;
+}
+
+function normalizeCustomerLookupPayload(
+  payload: unknown,
+  fallbackPhone: string,
+  limit: number,
+) {
+  const data = toMap(payload) ?? {};
+  const customer = toMap(data.customer);
+  const billingSummary = toMap(data.billingSummary);
+
+  const exists =
+    typeof data.exists === "boolean"
+      ? data.exists
+      : Boolean(
+          toTrimmedText(customer?.name) ||
+            toCount(billingSummary?.totalBills ?? data.totalBills) > 0,
+        );
+  const isNewCustomer =
+    typeof data.isNewCustomer === "boolean" ? data.isNewCustomer : !exists;
+  const skipped = data.skipped === true;
+
+  const bills = asList(data.recentBills ?? data.bills)
+    .map((entry) => normalizeLookupBill(entry))
+    .filter((entry): entry is CustomerLookupBill => Boolean(entry))
+    .slice(0, limit);
+
+  const totalBills = toCount(
+    billingSummary?.totalBills ?? billingSummary?.billCount ?? data.totalBills ?? data.billCount,
+  );
+  const totalAmount = toMoney(
+    billingSummary?.totalAmount ??
+      billingSummary?.amount ??
+      data.totalAmount ??
+      data.totalSpent,
+  );
+  const fallbackAmount =
+    totalAmount > 0
+      ? totalAmount
+      : bills.reduce((sum, bill) => sum + toMoney(bill.totalAmount), 0);
+  const name = exists && !skipped ? toTrimmedText(customer?.name ?? data.name) : "";
+  const phoneNumber = toTrimmedText(customer?.phoneNumber ?? data.phoneNumber) || fallbackPhone;
+
+  return {
+    name,
+    phoneNumber,
+    totalBills: isNewCustomer ? 0 : totalBills || bills.length,
+    totalAmount: isNewCustomer ? 0 : Number(fallbackAmount.toFixed(2)),
+    isNewCustomer: skipped ? true : isNewCustomer,
+    bills,
+  } satisfies CustomerLookupResult;
+}
+
 function formatMoney(amount: number) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -292,7 +410,6 @@ export default function KotPage() {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerPhoneDraft, setCustomerPhoneDraft] = useState("");
   const [customerNameDraft, setCustomerNameDraft] = useState("");
-  const [customerLookupData, setCustomerLookupData] = useState<CustomerLookupResult | null>(null);
   const [historyLookupData, setHistoryLookupData] = useState<CustomerLookupResult | null>(null);
   const [isCustomerLookupLoading, setIsCustomerLookupLoading] = useState(false);
   const [isHistoryLookupLoading, setIsHistoryLookupLoading] = useState(false);
@@ -517,8 +634,6 @@ export default function KotPage() {
     customerConfig.showHistory &&
     normalizedCustomerPhoneDraft.length >= 10 &&
     !isHistoryLookupLoading;
-  const showCustomerSummary =
-    normalizedCustomerPhoneDraft.length >= 10 && customerLookupData !== null;
 
   useEffect(() => {
     setPreparationClockMs(Date.now());
@@ -622,18 +737,18 @@ export default function KotPage() {
       }
 
       const response = await fetch(
-        `/api/customer-lookup?branchId=${encodeURIComponent(
+        `/api/billing/customer-lookup?branchId=${encodeURIComponent(
           branchId,
         )}&phoneNumber=${encodeURIComponent(normalizedPhone)}&limit=${limit}`,
         { cache: "no-store" },
       );
 
-      const payload = (await response.json()) as CustomerLookupResult & { message?: string };
+      const payload = (await response.json()) as Record<string, unknown> & { message?: string };
       if (!response.ok) {
         throw new Error(payload.message || "Unable to fetch customer details");
       }
 
-      return payload;
+      return normalizeCustomerLookupPayload(payload, normalizedPhone, limit);
     },
     [branchId],
   );
@@ -641,7 +756,6 @@ export default function KotPage() {
   const openCustomerModal = () => {
     setCustomerPhoneDraft(customerPhone);
     setCustomerNameDraft(customerName);
-    setCustomerLookupData(null);
     setHistoryLookupData(null);
     setCustomerLookupError("");
     setCustomerModalError("");
@@ -882,7 +996,6 @@ export default function KotPage() {
     }
 
     if (normalizedPhone.length < 10) {
-      setCustomerLookupData(null);
       setCustomerLookupError("");
       setIsCustomerLookupLoading(false);
       return;
@@ -898,7 +1011,6 @@ export default function KotPage() {
           if (isDisposed || normalizePhone(customerPhoneDraft) !== normalizedPhone) {
             return;
           }
-          setCustomerLookupData(payload);
           if (payload?.name) {
             setCustomerNameDraft((current) => current.trim() || payload.name);
           }
@@ -906,7 +1018,6 @@ export default function KotPage() {
           if (isDisposed || normalizePhone(customerPhoneDraft) !== normalizedPhone) {
             return;
           }
-          setCustomerLookupData(null);
           setCustomerLookupError(
             error instanceof Error ? error.message : "Unable to fetch customer details",
           );
@@ -1357,27 +1468,11 @@ export default function KotPage() {
               />
             </div>
 
-            {showCustomerSummary ? (
-              <button
-                type="button"
-                className={`${styles.customerSummaryCard} ${
-                  canOpenCustomerHistory ? styles.customerSummaryCardActive : ""
-                }`}
-                onClick={() => {
-                  void openCustomerHistory();
-                }}
-                disabled={!canOpenCustomerHistory}
-              >
-                <div className={styles.customerSummaryMeta}>
-                  <span>{customerLookupData?.totalBills ?? 0} bills</span>
-                  <span>{formatMoney(customerLookupData?.totalAmount ?? 0)} spent</span>
-                </div>
-              </button>
-            ) : (
+            {normalizedCustomerPhoneDraft.length < 10 ? (
               <div className={styles.customerHint}>
                 Enter a 10-digit phone number to load saved customer details and history.
               </div>
-            )}
+            ) : null}
 
             {customerModalError ? (
               <div className={styles.customerLookupError}>{customerModalError}</div>
