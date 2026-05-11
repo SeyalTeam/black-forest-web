@@ -180,13 +180,15 @@ function normalizeCustomerLookupPayload(payload: unknown, fallbackPhone: string,
 
 function normalizeCustomerLookupLitePayload(payload: unknown, fallbackPhone: string) {
   const data = toMap(payload) ?? {};
-  const customer = toMap(data.customer);
-  const exists = data.exists === true;
+  const docs = asList(data.docs);
+  const firstDoc = toMap(docs[0]);
+  const totalDocs = Math.max(0, Math.trunc(toNumber(data.totalDocs)));
+  const exists = totalDocs > 0 && Boolean(firstDoc);
 
   return {
     exists,
-    customerName: exists ? toTrimmedText(data.customerName ?? customer?.name) : "",
-    phoneNumber: toTrimmedText(data.phoneNumber ?? customer?.phoneNumber) || fallbackPhone,
+    customerName: exists ? toTrimmedText(firstDoc?.name) : "",
+    phoneNumber: toTrimmedText(firstDoc?.phoneNumber ?? data.phoneNumber) || fallbackPhone,
     skipped: data.skipped === true,
   } satisfies CustomerLookupLiteResult;
 }
@@ -756,12 +758,22 @@ export default function KotPage() {
 
   const fetchCustomerLookupLite = useCallback(async (phone: string) => {
     const normalizedPhone = normalizePhone(phone);
-    if (!normalizedPhone) {
+    if (!branchId || normalizedPhone.length < 10) {
       return null;
     }
 
+    const phone10 = normalizedPhone.slice(-10);
+    const phoneWithPrefix = `91${phone10}`;
+    const query = new URLSearchParams({
+      limit: "1",
+      depth: "0",
+      branchId,
+    });
+    query.set("where[or][0][phoneNumber][equals]", phone10);
+    query.set("where[or][1][phoneNumber][equals]", phoneWithPrefix);
+
     const response = await fetch(
-      `/api/billing/customer-lookup-lite?phoneNumber=${encodeURIComponent(normalizedPhone)}`,
+      `/api/billing-customers?${query.toString()}`,
       { cache: "no-store" },
     );
 
@@ -770,8 +782,8 @@ export default function KotPage() {
       throw new Error(payload.message || "Unable to fetch customer details");
     }
 
-    return normalizeCustomerLookupLitePayload(payload, normalizedPhone);
-  }, []);
+    return normalizeCustomerLookupLitePayload(payload, phone10);
+  }, [branchId]);
 
   const openCustomerModal = () => {
     setCustomerPhoneDraft(customerPhone);

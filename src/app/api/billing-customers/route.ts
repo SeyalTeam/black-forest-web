@@ -25,19 +25,12 @@ async function readJsonPayload(response: Response) {
 
 export async function GET(request: NextRequest) {
   try {
-    const phoneNumber = toTrimmedText(request.nextUrl.searchParams.get("phoneNumber"));
-    const phone = toTrimmedText(request.nextUrl.searchParams.get("phone"));
-    const resolvedPhone = phoneNumber || phone;
+    const query = new URLSearchParams(request.nextUrl.searchParams);
+    const branchId = toTrimmedText(query.get("branchId"));
+    query.delete("branchId");
 
-    if (!resolvedPhone) {
-      return Response.json({ message: "phoneNumber or phone is required" }, { status: 400 });
-    }
-
-    const query = new URLSearchParams();
-    if (phoneNumber) {
-      query.set("phoneNumber", phoneNumber);
-    } else {
-      query.set("phone", phone);
+    if (![...query.keys()].length) {
+      return Response.json({ message: "Query filters are required" }, { status: 400 });
     }
 
     const headers: Record<string, string> = {
@@ -48,7 +41,6 @@ export async function GET(request: NextRequest) {
     if (incomingAuthorization) {
       headers.Authorization = incomingAuthorization;
     } else {
-      const branchId = toTrimmedText(request.nextUrl.searchParams.get("branchId"));
       const cookieToken = toTrimmedText(request.cookies.get(COOKIE_ADMIN_TOKEN_KEY)?.value);
       const branchToken = resolveApiTokenForBranch(branchId);
       const resolvedToken = cookieToken || branchToken;
@@ -62,7 +54,7 @@ export async function GET(request: NextRequest) {
       headers.cookie = incomingCookie;
     }
 
-    const upstreamResponse = await fetch(`${API_BASE}/billing/customer-lookup-lite?${query}`, {
+    const upstreamResponse = await fetch(`${API_BASE}/billing-customers?${query}`, {
       headers,
       cache: "no-store",
     });
