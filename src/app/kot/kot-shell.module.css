@@ -559,12 +559,6 @@
   opacity: 0.94;
 }
 
-.customerSummaryName {
-  color: #ffffff;
-  font-size: 0.98rem;
-  font-weight: 800;
-}
-
 .customerSummaryMeta,
 .historySummaryMeta,
 .historyMeta {
@@ -575,6 +569,10 @@
   color: rgba(255, 255, 255, 0.72);
   font-size: 0.88rem;
   font-weight: 600;
+}
+
+.customerSummaryCard .customerSummaryMeta {
+  margin-top: 0;
 }
 
 .customerDialogActions {

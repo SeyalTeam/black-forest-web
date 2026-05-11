@@ -1368,10 +1368,6 @@ export default function KotPage() {
                 }}
                 disabled={!canOpenCustomerHistory}
               >
-                <div className={styles.customerSummaryName}>
-                  {customerLookupData?.name ||
-                    (customerLookupData?.isNewCustomer ? "New customer" : "Customer details")}
-                </div>
                 <div className={styles.customerSummaryMeta}>
                   <span>{customerLookupData?.totalBills ?? 0} bills</span>
                   <span>{formatMoney(customerLookupData?.totalAmount ?? 0)} spent</span>
