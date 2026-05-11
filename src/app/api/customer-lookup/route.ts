@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 
 const API_BASE = "https://blackforest1.vseyal.com/api";
+const QUICK_LOOKUP_LIMIT = 20;
+const FALLBACK_PAGE_SIZE = 50;
+const FALLBACK_MAX_PAGES = 2;
 
 function toMap(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -474,7 +477,7 @@ async function requestBillingHistoryFallback({
 
   const baseQuery: Record<string, string> = {
     sort: "-createdAt",
-    limit: "100",
+    limit: String(FALLBACK_PAGE_SIZE),
     depth: "0",
   };
   if (branchId) {
@@ -558,11 +561,11 @@ async function requestBillingHistoryFallback({
       payloadDataPagination?.totalPages,
     ]);
     if (totalPages <= 0 && totalBillsHint > 0) {
-      totalPages = Math.ceil(totalBillsHint / 100);
+      totalPages = Math.ceil(totalBillsHint / FALLBACK_PAGE_SIZE);
     }
     if (totalPages < 1) totalPages = 1;
 
-    const pagesToFetch = Math.min(totalPages, 10);
+    const pagesToFetch = Math.min(totalPages, FALLBACK_MAX_PAGES);
     for (let page = 2; page <= pagesToFetch; page += 1) {
       const pageQuery = { ...query, page: String(page) };
       const pageResponse = await fetch(
@@ -643,6 +646,7 @@ export async function GET(request: NextRequest) {
       50,
       Math.max(1, Number.parseInt(request.nextUrl.searchParams.get("limit") ?? "20", 10) || 20),
     );
+    const isQuickLookup = limit <= QUICK_LOOKUP_LIMIT;
 
     if (phoneNumber.length < 10) {
       return Response.json({ message: "Enter a valid phone number" }, { status: 400 });
@@ -678,7 +682,7 @@ export async function GET(request: NextRequest) {
           orderType: "all",
         } satisfies Record<string, unknown>);
 
-    if (branchId) {
+    if (branchId && !isQuickLookup) {
       const globalLookup = await requestLookupData({
         token,
         normalizedPhone: phoneNumber,
@@ -692,7 +696,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (shouldTryBillingFallback(preferredResult)) {
+    if (!isQuickLookup && shouldTryBillingFallback(preferredResult)) {
       const scopedFallback = await requestBillingHistoryFallback({
         token,
         normalizedPhone: phoneNumber,
@@ -701,16 +705,14 @@ export async function GET(request: NextRequest) {
       });
 
       let bestFallback = scopedFallback;
-      if (branchId) {
+      if (!bestFallback && branchId) {
         const globalFallback = await requestBillingHistoryFallback({
           token,
           normalizedPhone: phoneNumber,
           limit,
         });
         if (globalFallback) {
-          bestFallback = bestFallback
-            ? preferBetterHistory(bestFallback, globalFallback)
-            : globalFallback;
+          bestFallback = globalFallback;
         }
       }
 

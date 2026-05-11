@@ -35,7 +35,7 @@ function parseTokenMap(raw: string) {
     const normalizedEntry = entry.trim();
     if (!normalizedEntry) continue;
 
-    const separatorIndex = normalizedEntry.indexOf("=");
+    const separatorIndex = normalizedEntry.search(/[=:]/);
     if (separatorIndex <= 0) continue;
 
     const branchId = normalizedEntry.slice(0, separatorIndex).trim();
@@ -79,4 +79,3 @@ export function resolveApiTokenForBranch(branchId?: string) {
 
   return readDefaultToken();
 }
-
