@@ -864,6 +864,7 @@ export default function KotPage() {
           branchName,
           tableNumber: trimmedTableNumber,
           preferredSection,
+          tableLocked: isQrTableLocked,
           customerDetails: {
             name: customerDetails?.name?.trim() ?? "",
             phoneNumber: customerDetails?.phoneNumber?.trim() ?? "",

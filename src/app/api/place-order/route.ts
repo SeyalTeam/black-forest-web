@@ -90,6 +90,56 @@ function parseTableNumberToken(raw: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseConfiguredTableRange(value: unknown): { start: number; end: number } | null {
+  if (typeof value !== "string") return null;
+
+  const normalizedValue = value.trim();
+  if (!normalizedValue) return null;
+
+  const match = normalizedValue.match(/^T?\s*(\d+)(?:\s*-\s*T?\s*(\d+))?$/i);
+  if (!match) return null;
+
+  const start = Number.parseInt(match[1], 10);
+  const end = Number.parseInt(match[2] ?? match[1], 10);
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start <= 0 || end <= 0 || end < start) {
+    return null;
+  }
+
+  return { start, end };
+}
+
+function resolveConfiguredTableNumbersFromSection(section: Record<string, unknown>): string[] {
+  const rangeRows = Array.isArray(section.rangeRows) ? section.rangeRows : [];
+  const seen = new Set<string>();
+  const resolvedFromRanges: string[] = [];
+
+  for (const row of rangeRows) {
+    const rowRecord = row && typeof row === "object" && !Array.isArray(row) ? (row as Record<string, unknown>) : {};
+    const parsedRange = parseConfiguredTableRange(rowRecord.tableRange);
+    if (!parsedRange) continue;
+
+    for (let tableNumber = parsedRange.start; tableNumber <= parsedRange.end; tableNumber += 1) {
+      const normalized = String(tableNumber);
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      resolvedFromRanges.push(normalized);
+    }
+  }
+
+  if (resolvedFromRanges.length > 0) return resolvedFromRanges;
+
+  const tableCount = toFiniteInteger(section.tableCount);
+  if (tableCount <= 0) return [];
+
+  const fallback: string[] = [];
+  for (let index = 1; index <= tableCount; index += 1) {
+    fallback.push(String(index));
+  }
+
+  return fallback;
+}
+
 function parseSections(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
@@ -102,13 +152,18 @@ function parseSections(value: unknown) {
           ? (entry as Record<string, unknown>)
           : null;
       if (!map) return null;
+
+      const name = toTrimmedText(map.name);
+      const configuredTables = resolveConfiguredTableNumbersFromSection(map);
+
       return {
-        name: toTrimmedText(map.name),
-        tableCount: toFiniteInteger(map.tableCount),
+        name,
+        configuredTables,
       };
     })
     .filter(
-      (section): section is { name: string; tableCount: number } => section !== null,
+      (section): section is { name: string; configuredTables: string[] } =>
+        section !== null && section.name !== "",
     );
 }
 
@@ -123,13 +178,19 @@ async function resolveLiveSectionsForTableNumber({
   token: string;
   preferredSection?: string;
 }) {
-  const tablesUrl = `${API_BASE}/tables?where[branch][equals]=${encodeURIComponent(branchId)}&limit=100&depth=1`;
+  const tablesUrl = `${API_BASE}/tables?where[branch][equals]=${encodeURIComponent(branchId)}&limit=100&depth=0`;
+  const startTime = performance.now();
+
   const response = await fetch(tablesUrl, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
     cache: "no-store",
   });
+
+  const duration = performance.now() - startTime;
+  console.log(`[PlaceOrder API] Fetching tables took ${duration.toFixed(1)}ms`);
+
   if (!response.ok) {
     return [];
   }
@@ -142,7 +203,7 @@ async function resolveLiveSectionsForTableNumber({
   for (const root of payload.docs ?? []) {
     const sections = parseSections(root.sections);
     for (const section of sections) {
-      if (tableNumber > 0 && tableNumber <= section.tableCount && section.name) {
+      if (section.configuredTables.includes(String(tableNumber))) {
         sectionNames.add(section.name);
       }
     }
@@ -186,12 +247,17 @@ async function findOccupiedSectionsForTable({
     depth: "0",
   });
 
+  const startTime = performance.now();
   const response = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
     cache: "no-store",
   });
+
+  const duration = performance.now() - startTime;
+  console.log(`[PlaceOrder API] Fetching occupied sections took ${duration.toFixed(1)}ms`);
+
   if (!response.ok) {
     return new Set<string>();
   }
@@ -234,12 +300,16 @@ async function findExistingOpenBill({
     depth: "0",
   });
 
+  const startTime = performance.now();
   const lookupResponse = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
     cache: "no-store",
   });
+
+  const duration = performance.now() - startTime;
+  console.log(`[PlaceOrder API] Fetching existing open bill for table ${tableNumber} (${sectionName}) took ${duration.toFixed(1)}ms`);
 
   if (!lookupResponse.ok) {
     const message = await readResponseMessage(lookupResponse);
@@ -446,12 +516,16 @@ async function fetchProductMetadataMap({
     depth: "1",
   });
 
+  const startTime = performance.now();
   const response = await fetch(`${API_BASE}/products?${params.toString()}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
     cache: "no-store",
   });
+
+  const duration = performance.now() - startTime;
+  console.log(`[PlaceOrder API] Fetching product metadata map took ${duration.toFixed(1)}ms`);
 
   if (!response.ok) {
     return new Map<string, ProductMetadata>();
@@ -522,6 +596,7 @@ export async function POST(request: NextRequest) {
       branchId?: string;
       tableNumber?: string;
       preferredSection?: string;
+      tableLocked?: boolean;
       customerDetails?: {
         name?: string;
         phoneNumber?: string;
@@ -532,6 +607,7 @@ export async function POST(request: NextRequest) {
     const branchId = toTrimmedText(body.branchId);
     const tableNumberInput = toTrimmedText(body.tableNumber);
     const preferredSection = toTrimmedText(body.preferredSection);
+    const isTableLocked = body.tableLocked === true;
     const incomingCustomerDetails = normalizeCustomerDetails(body.customerDetails);
     const incomingItems = Array.isArray(body.items) ? body.items : [];
 
@@ -589,6 +665,7 @@ export async function POST(request: NextRequest) {
         }
       | undefined;
     let existingBill: Record<string, unknown> | null = null;
+    let existingBillLookupTarget: { tableNumber: string; section: string } | null = null;
 
     if (preferredSection) {
       existingBill = await findExistingOpenBill({
@@ -597,8 +674,12 @@ export async function POST(request: NextRequest) {
         branchId,
         token,
       });
+      existingBillLookupTarget = {
+        tableNumber: tableNumberInput,
+        section: preferredSection,
+      };
 
-      if (existingBill) {
+      if (existingBill || isTableLocked) {
         resolvedTarget = {
           tableNumber: tableNumberInput,
           section: preferredSection,
@@ -632,13 +713,23 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(", ");
 
-    if (!existingBill) {
+    const hasExistingLookupForResolvedTarget =
+      existingBillLookupTarget !== null &&
+      existingBillLookupTarget.tableNumber === tableNumber &&
+      normalizeSectionKey(existingBillLookupTarget.section) ===
+        normalizeSectionKey(sectionName);
+
+    if (!hasExistingLookupForResolvedTarget) {
       existingBill = await findExistingOpenBill({
         tableNumber,
         sectionName,
         branchId,
         token,
       });
+      existingBillLookupTarget = {
+        tableNumber,
+        section: sectionName,
+      };
     }
 
     const existingId = toTrimmedText(existingBill?.id);
@@ -676,6 +767,8 @@ export async function POST(request: NextRequest) {
     const writeUrl = existingId
       ? `${API_BASE}/billings/${existingId}?depth=0`
       : `${API_BASE}/billings?depth=0`;
+
+    const startTimeWrite = performance.now();
     const writeResponse = await fetch(writeUrl, {
       method: existingId ? "PATCH" : "POST",
       headers: {
@@ -685,6 +778,9 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(payload),
       cache: "no-store",
     });
+
+    const durationWrite = performance.now() - startTimeWrite;
+    console.log(`[PlaceOrder API] Writing/Saving billing record (Method: ${existingId ? "PATCH" : "POST"}) took ${durationWrite.toFixed(1)}ms`);
 
     if (!writeResponse.ok) {
       const message = await readResponseMessage(writeResponse);
