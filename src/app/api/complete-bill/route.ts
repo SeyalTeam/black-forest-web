@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { BILLING_DISABLED_MESSAGE, BILLING_ENABLED } from "@/lib/billing-config";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 
-const API_BASE = "https://blackforest1.vseyal.com/api";
+const API_BASE = "https://blackforest2.vseyal.com/api";
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";

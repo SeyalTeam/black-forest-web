@@ -10,7 +10,7 @@ import type {
   RuleSection,
 } from "@/lib/order-types";
 
-const API_BASE = "https://blackforest1.vseyal.com/api";
+const API_BASE = "https://blackforest2.vseyal.com/api";
 const DEFAULT_BRANCH_ID =
   process.env.DEFAULT_BRANCH_ID?.trim() ||
   process.env.NEXT_PUBLIC_DEFAULT_BRANCH_ID?.trim() ||
