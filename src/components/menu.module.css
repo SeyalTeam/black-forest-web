@@ -515,24 +515,23 @@
 .sectionGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px 18px;
+  gap: 20px 12px;
 }
 
 .productCard {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   background: #FAF6F0;
-  border-radius: 24px;
-  padding: 14px;
-  box-shadow: 0 8px 24px rgba(113, 61, 25, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.025);
+  border-radius: 20px;
+  padding: 10px;
+  box-shadow: 0 4px 16px rgba(113, 61, 25, 0.03);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .productCard:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(113, 61, 25, 0.06);
+  box-shadow: 0 8px 24px rgba(113, 61, 25, 0.05);
 }
 
 .productCardDraggable {
@@ -572,8 +571,8 @@
 .productArt {
   position: relative;
   overflow: hidden;
-  border-radius: 20px;
-  aspect-ratio: 0.92;
+  border-radius: 16px;
+  aspect-ratio: 1.1;
   box-shadow: none;
 }
 
@@ -624,20 +623,22 @@
 
 .productPrepBadge {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  top: 8px;
+  left: 8px;
   z-index: 2;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   height: 22px;
   padding: 0 8px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.65);
   color: #ffffff;
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.05em;
+  line-height: 1;
   text-transform: uppercase;
   pointer-events: none;
 }
@@ -703,22 +704,23 @@
   padding: 4px 2px 0 2px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .productMetaRow {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  min-height: 18px;
+  min-height: 16px;
+  margin-top: -4px;
 }
 
 .productTitle {
-  min-height: 40px;
+  min-height: 32px;
   color: #000000;
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1.2;
   text-transform: uppercase;
   letter-spacing: 0.01em;
 }
@@ -727,22 +729,23 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .priceText {
   flex: 1;
   color: #000000;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 900;
 }
 
 .qtyControl,
 .addButton,
 .stockStatus {
-  min-width: 82px;
-  height: 34px;
-  border-radius: 17px;
+  width: fit-content;
+  min-width: 68px;
+  height: 32px;
+  border-radius: 16px;
   background: #ffffff;
 }
 
@@ -752,6 +755,7 @@
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.05em;
+  padding: 0 16px;
   box-shadow: none;
   cursor: pointer;
   display: flex;
@@ -766,7 +770,7 @@
 
 .qtyControl {
   display: grid;
-  grid-template-columns: 26px 1fr 26px;
+  grid-template-columns: 24px 1fr 24px;
   align-items: center;
   border: 1.5px solid #C82233;
 }
