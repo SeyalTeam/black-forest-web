@@ -1,7 +1,7 @@
 .page {
   min-height: 100vh;
   padding: 16px 16px 156px;
-  background: linear-gradient(180deg, #f7f2ec 0%, #f2ece3 100%);
+  background: #FAF6F0;
 }
 
 .shell {
@@ -522,6 +522,17 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  background: #FAF6F0;
+  border-radius: 24px;
+  padding: 14px;
+  box-shadow: 0 8px 24px rgba(113, 61, 25, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.025);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.productCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(113, 61, 25, 0.06);
 }
 
 .productCardDraggable {
@@ -561,9 +572,9 @@
 .productArt {
   position: relative;
   overflow: hidden;
-  border-radius: 30px;
+  border-radius: 20px;
   aspect-ratio: 0.92;
-  box-shadow: 0 18px 28px rgba(61, 53, 46, 0.12);
+  box-shadow: none;
 }
 
 .dragMoveHandle {
@@ -619,24 +630,16 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 22px;
-  max-width: calc(100% - 24px);
+  height: 22px;
   padding: 0 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 999px;
-  background: rgba(70, 70, 70, 0.34);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.42);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   pointer-events: none;
-  opacity: 0.95;
 }
 
 .productPrepIcon {
@@ -697,36 +700,39 @@
 }
 
 .productBody {
-  padding: 0 2px;
+  padding: 4px 2px 0 2px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .productMetaRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   min-height: 18px;
 }
 
 .productTitle {
-  min-height: 48px;
-  color: #2d333d;
-  font-size: 15px;
+  min-height: 40px;
+  color: #000000;
+  font-size: 13.5px;
   font-weight: 800;
-  line-height: 1.14;
+  line-height: 1.25;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .productFooter {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  margin-top: 4px;
 }
 
 .priceText {
   flex: 1;
-  color: #111827;
+  color: #000000;
   font-size: 20px;
   font-weight: 900;
 }
@@ -734,26 +740,35 @@
 .qtyControl,
 .addButton,
 .stockStatus {
-  min-width: 104px;
-  height: 42px;
-  border-radius: 22px;
+  min-width: 82px;
+  height: 34px;
+  border-radius: 17px;
   background: #ffffff;
 }
 
 .addButton {
-  border: 2px solid #ef4f5f;
-  color: #ef4f5f;
-  font-size: 14px;
+  border: 1.5px solid #C82233;
+  color: #C82233;
+  font-size: 13px;
   font-weight: 800;
+  letter-spacing: 0.05em;
   box-shadow: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.addButton:hover {
+  background: rgba(200, 34, 51, 0.04);
 }
 
 .qtyControl {
   display: grid;
-  grid-template-columns: 28px 1fr 28px;
+  grid-template-columns: 26px 1fr 26px;
   align-items: center;
-  border: 1px solid #d9d2ca;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  border: 1.5px solid #C82233;
 }
 
 .stockStatus {
@@ -773,15 +788,20 @@
 .qtyControl button {
   height: 100%;
   background: transparent;
-  color: #1aa05b;
-  font-size: 20px;
+  color: #C82233;
+  font-size: 16px;
   font-weight: 700;
   cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .qtyValue {
-  color: #1f2430;
-  font-size: 14px;
+  color: #000000;
+  font-size: 13px;
   font-weight: 800;
   text-align: center;
 }

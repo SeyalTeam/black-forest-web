@@ -564,9 +564,9 @@ export async function POST(request: NextRequest) {
     });
     const productMetadataById = requiresMetadataLookup
       ? await fetchProductMetadataMap({
-          items: incomingItems,
-          token,
-        })
+        items: incomingItems,
+        token,
+      })
       : new Map<string, ProductMetadata>();
 
     const billingItems = incomingItems
@@ -585,10 +585,10 @@ export async function POST(request: NextRequest) {
 
     let resolvedTarget:
       | {
-          tableNumber: string;
-          section: string;
-          useShared: boolean;
-        }
+        tableNumber: string;
+        section: string;
+        useShared: boolean;
+      }
       | undefined;
     let existingBill: Record<string, unknown> | null = null;
     let existingBillLookupTarget: { tableNumber: string; section: string } | null = null;
@@ -643,7 +643,7 @@ export async function POST(request: NextRequest) {
       existingBillLookupTarget !== null &&
       existingBillLookupTarget.tableNumber === tableNumber &&
       normalizeSectionKey(existingBillLookupTarget.section) ===
-        normalizeSectionKey(sectionName);
+      normalizeSectionKey(sectionName);
 
     if (!hasExistingLookupForResolvedTarget) {
       existingBill = await findExistingOpenBill({
