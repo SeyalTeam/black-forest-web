@@ -1,7 +1,7 @@
 .page {
   min-height: 100vh;
   padding: 16px 16px 156px;
-  background: #FAF6F0;
+  background: #F3EDE4;
 }
 
 .shell {
@@ -521,11 +521,11 @@
 .productCard {
   display: flex;
   flex-direction: column;
-  background: #FAF6F0;
+  background: #FFFFFF;
   border-radius: 16px;
   padding: 0;
   overflow: hidden;
-  box-shadow: 0 4px 16px rgba(113, 61, 25, 0.03);
+  box-shadow: 0 4px 16px rgba(113, 61, 25, 0.04);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -571,7 +571,7 @@
 .productArt {
   position: relative;
   overflow: hidden;
-  border-radius: 0;
+  border-radius: 16px 16px 0 0;
   aspect-ratio: 1.15;
   box-shadow: none;
 }
@@ -735,7 +735,7 @@
 .priceText {
   flex: 1;
   color: #000000;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 900;
 }
 
@@ -743,19 +743,19 @@
 .addButton,
 .stockStatus {
   width: fit-content;
-  min-width: 68px;
-  height: 32px;
-  border-radius: 16px;
+  min-width: 56px;
+  height: 28px;
+  border-radius: 14px;
   background: #ffffff;
 }
 
 .addButton {
   border: 1.5px solid #C82233;
   color: #C82233;
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 800;
   letter-spacing: 0.05em;
-  padding: 0 16px;
+  padding: 0 12px;
   box-shadow: none;
   cursor: pointer;
   display: flex;
@@ -770,7 +770,7 @@
 
 .qtyControl {
   display: grid;
-  grid-template-columns: 24px 1fr 24px;
+  grid-template-columns: 20px 1fr 20px;
   align-items: center;
   border: 1.5px solid #C82233;
 }
