@@ -383,7 +383,7 @@ export default function ProductsPage() {
                         <div className={styles.priceText}>₹{product.price}</div>
 
                         {isOutOfStock ? (
-                          <span className={styles.stockStatus}>OUT OF STOCK</span>
+                          <span className={styles.stockStatus}>OS</span>
                         ) : quantity === 0 ? (
                           <button
                             type="button"
