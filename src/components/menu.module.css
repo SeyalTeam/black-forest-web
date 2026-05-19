@@ -522,7 +522,7 @@
   display: flex;
   flex-direction: column;
   background: #FFFFFF;
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 0;
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(113, 61, 25, 0.04);
@@ -571,7 +571,7 @@
 .productArt {
   position: relative;
   overflow: hidden;
-  border-radius: 16px 16px 0 0;
+  border-radius: 12px 12px 0 0;
   aspect-ratio: 1.15;
   box-shadow: none;
 }
@@ -782,7 +782,7 @@
   z-index: 2;
   background: #ffffff;
   border-radius: 4px;
-  padding: 3px;
+  padding: 2px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

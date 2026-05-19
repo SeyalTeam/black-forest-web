@@ -472,16 +472,16 @@ export function VegIcon({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        width: 18,
-        height: 18,
-        borderRadius: 4,
-        border: `1.6px solid ${isVeg ? "#16a34a" : "#ef4f5f"}`,
+        width: 14,
+        height: 14,
+        borderRadius: 3,
+        border: `1.2px solid ${isVeg ? "#16a34a" : "#ef4f5f"}`,
       }}
     >
       <span
         style={{
-          width: 8,
-          height: 8,
+          width: 6,
+          height: 6,
           borderRadius: isVeg ? "50%" : "2px",
           background: isVeg ? "#16a34a" : "#ef4f5f",
           transform: isVeg ? undefined : "rotate(45deg)",
