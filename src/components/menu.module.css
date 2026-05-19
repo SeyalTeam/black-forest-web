@@ -521,10 +521,10 @@
 .productCard {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   background: #FAF6F0;
-  border-radius: 20px;
-  padding: 10px;
+  border-radius: 16px;
+  padding: 0;
+  overflow: hidden;
   box-shadow: 0 4px 16px rgba(113, 61, 25, 0.03);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -571,8 +571,8 @@
 .productArt {
   position: relative;
   overflow: hidden;
-  border-radius: 16px;
-  aspect-ratio: 1.1;
+  border-radius: 0;
+  aspect-ratio: 1.15;
   box-shadow: none;
 }
 
@@ -701,7 +701,7 @@
 }
 
 .productBody {
-  padding: 4px 2px 0 2px;
+  padding: 10px 10px 14px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -773,6 +773,20 @@
   grid-template-columns: 24px 1fr 24px;
   align-items: center;
   border: 1.5px solid #C82233;
+}
+
+.productVegBadge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 2;
+  background: #ffffff;
+  border-radius: 4px;
+  padding: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .stockStatus {

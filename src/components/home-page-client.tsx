@@ -1401,12 +1401,12 @@ export default function HomePageClient({
                       {isOutOfStock ? (
                         <span className={styles.productArtStockOverlay}>OUT OF STOCK</span>
                       ) : null}
+                      <span className={styles.productVegBadge}>
+                        <VegIcon isVeg={product.isVeg} />
+                      </span>
                     </div>
 
                     <div className={styles.productBody}>
-                      <div className={styles.productMetaRow}>
-                        <VegIcon isVeg={product.isVeg} />
-                      </div>
                       <div className={styles.productTitle}>{product.name}</div>
                       <div className={styles.productFooter}>
                         <div className={styles.priceText}>₹{product.price}</div>
