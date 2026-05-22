@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
-import { getDb } from "@/lib/mongodb";
+import { resolveApiTokenForBranch } from "@/lib/api-token";
+
+const API_BASE = "https://blackforest2.vseyal.com/api";
 
 function toTrimmedText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -10,6 +12,23 @@ function toPayload(value: unknown) {
     return null;
   }
   return value as Record<string, unknown>;
+}
+
+async function readResponsePayload(response: Response) {
+  const raw = await response.text();
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    return { message: String(parsed) };
+  } catch {
+    return { message: raw };
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -26,19 +45,40 @@ export async function POST(request: NextRequest) {
       return Response.json({ message: "Branch id is required" }, { status: 400 });
     }
 
-    const payload: Record<string, unknown> = { 
-      branchId,
-      createdAt: new Date(),
-      status: "pending"
-    };
-    if (billId) payload.billId = billId;
-    if (tableNumber) payload.tableNumber = tableNumber;
-    if (section) payload.section = section;
+    const token = resolveApiTokenForBranch(branchId);
+    if (!token) {
+      return Response.json(
+        {
+          message:
+            "Waiter call is not enabled yet. Add BLACKFOREST_BRANCH_API_TOKENS or BLACKFOREST_API_TOKEN in Vercel so the website can alert billing.",
+        },
+        { status: 503 },
+      );
+    }
 
-    const db = await getDb();
-    await db.collection("waiterCalls").insertOne(payload);
+    const payload: Record<string, string> = { branchId };
+    if (billId) {
+      payload.billId = billId;
+    }
+    if (tableNumber) {
+      payload.tableNumber = tableNumber;
+    }
+    if (section) {
+      payload.section = section;
+    }
 
-    return Response.json({ message: "Waiter has been called", ok: true }, { status: 200 });
+    const upstreamResponse = await fetch(`${API_BASE}/call-waiter`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    const upstreamPayload = await readResponsePayload(upstreamResponse);
+    return Response.json(upstreamPayload, { status: upstreamResponse.status });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to call waiter";
     return Response.json({ message }, { status: 500 });
