@@ -21,6 +21,8 @@ import {
   readSessionCache,
   writeSessionCache,
 } from "@/lib/session-cache";
+import { applySectionPrice } from "@/lib/price-utils";
+import { readTableSession } from "@/components/branch-session";
 
 const PRODUCTS_REFRESH_INTERVAL_MS = 30_000;
 
@@ -69,6 +71,7 @@ export default function ProductsPage() {
   const [pageData, setPageData] = useState<ProductsPageData | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [tableSection, setTableSection] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -84,6 +87,9 @@ export default function ProductsPage() {
 
       setHasAccess(true);
       setBranchId(session.branchId);
+      
+      const tableSession = readTableSession(session.branchId);
+      setTableSection(tableSession?.section || "");
     });
 
     return () => {
@@ -346,7 +352,8 @@ export default function ProductsPage() {
 
           {!isLoading && !errorMessage && visibleProducts.length > 0 ? (
             <div className={styles.sectionGrid}>
-              {visibleProducts.map((product) => {
+              {visibleProducts.map((rawProduct) => {
+                const product = applySectionPrice(rawProduct, tableSection);
                 const quantity = cartQuantityById.get(product.id) ?? 0;
                 const isOutOfStock = product.isOutOfStock;
                 const preparationLabel = formatPreparationLabel(product.preparationTime);

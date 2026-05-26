@@ -2,6 +2,8 @@ export type Product = {
   id: string;
   name: string;
   price: number;
+  acPrice?: number;
+  nonACPrice?: number;
   category: string;
   categoryId: string;
   categoryImageUrl?: string | null;

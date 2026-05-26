@@ -800,23 +800,36 @@ function isProductActiveForBranch(product: DynamicMap, branchId?: string) {
 }
 
 function readBranchScopedPrice(product: DynamicMap, branchId?: string) {
-  let price = toNumber(product.price) || toNumber(toMap(product.defaultPriceDetails)?.price);
+  const defaultDetails = toMap(product.defaultPriceDetails);
+  let price = toNumber(product.price) || toNumber(defaultDetails?.price);
+  let acPrice = toNumber(defaultDetails?.acPrice);
+  let nonACPrice = toNumber(defaultDetails?.nonACPrice);
+
   if (!branchId) {
-    return price;
+    return { price, acPrice, nonACPrice };
   }
 
   const override = readBranchOverride(product, branchId);
   if (override) {
+    const overrideDetails = toMap(override.defaultPriceDetails);
     const overridePrice =
       toNumber(override.price) ||
       toNumber(override.offerPrice) ||
-      toNumber(toMap(override.defaultPriceDetails)?.price);
+      toNumber(overrideDetails?.price);
     if (overridePrice > 0) {
       price = overridePrice;
     }
+    const overrideAc = toNumber(overrideDetails?.acPrice);
+    if (overrideAc > 0) {
+      acPrice = overrideAc;
+    }
+    const overrideNonAc = toNumber(overrideDetails?.nonACPrice);
+    if (overrideNonAc > 0) {
+      nonACPrice = overrideNonAc;
+    }
   }
 
-  return price;
+  return { price, acPrice, nonACPrice };
 }
 
 function readPreparationTimeFromNode(node: unknown) {
@@ -890,7 +903,7 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
     "Products";
   const isVeg = toBool(map.isVeg ?? map.is_veg ?? map.veg);
   const imageUrl = readProductImage(map) ?? category?.imageUrl ?? "";
-  const price = readBranchScopedPrice(map, branchId);
+  const prices = readBranchScopedPrice(map, branchId);
   const preparationTime = readBranchScopedPreparationTime(map, branchId);
   const inventoryQuantity = readInventoryQuantity(map);
   const explicitOutOfStock = readExplicitOutOfStock(map, branchId);
@@ -900,7 +913,9 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
   return {
     id,
     name,
-    price,
+    price: prices.price,
+    acPrice: prices.acPrice,
+    nonACPrice: prices.nonACPrice,
     category: categoryName,
     categoryId,
     categoryImageUrl: category?.imageUrl ?? null,
