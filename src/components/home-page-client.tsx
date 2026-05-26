@@ -14,6 +14,7 @@ import {
   clearBranchSession,
   clearTableSession,
   readBranchSession,
+  readTableSession,
   writeTableSession,
   writeBranchSession,
 } from "@/components/branch-session";
@@ -40,6 +41,7 @@ import {
   prefetchCategoriesPageData,
   prefetchProductsPageData,
 } from "@/lib/session-cache";
+import { applySectionPrice } from "@/lib/price-utils";
 
 const HOME_CACHE_KEY_PREFIX = "blackforest-order-web-home-data-v4:";
 const HOME_CACHE_TTL_MS = 90 * 1000;
@@ -436,7 +438,6 @@ export default function HomePageClient({
 
       setRequestedBranchId(nextBranchId);
       setRequestedTableNumber(nextTableNumber);
-      setRequestedTableSection(nextTableSection);
 
       const cachedSession = readBranchSession();
 
@@ -446,6 +447,8 @@ export default function HomePageClient({
       }
 
       const resolvedBranchId = nextBranchId || initialBranchId?.trim() || cachedSession?.branchId || "";
+      const tableSession = resolvedBranchId ? readTableSession(resolvedBranchId) : null;
+      setRequestedTableSection(nextTableSection || tableSession?.section || "");
       if (!resolvedBranchId) {
         setHomeData(null);
         setBranchId(null);
