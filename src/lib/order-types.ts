@@ -16,6 +16,7 @@ export type Product = {
   hasExplicitOutOfStock?: boolean;
   isVeg: boolean;
   preparationTime: number | null;
+  gst?: number;
 };
 
 export type CartItem = Product & {
@@ -96,6 +97,7 @@ export type BillSummaryItem = {
   preparationTimeUpdatedAt: string;
   orderedAt: string;
   preparedAt: string;
+  gstRate?: number;
 };
 
 export type BillSummaryData = {

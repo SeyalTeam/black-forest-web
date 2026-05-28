@@ -343,7 +343,14 @@ export default function BillSummaryPage() {
 
                   <div className={styles.itemActions}>
                     <div className={styles.qtyBox}>{item.quantity}</div>
-                    <div className={styles.itemPrice}>₹{item.subtotal}</div>
+                    <div className={styles.itemPriceContainer}>
+                      <div className={styles.itemPrice}>₹{item.subtotal.toFixed(2)}</div>
+                      {item.gstRate ? (
+                        <div className={styles.itemGstAmount}>
+                          ₹{(item.subtotal / (1 + item.gstRate / 100)).toFixed(2)} + ₹{(item.subtotal - (item.subtotal / (1 + item.gstRate / 100))).toFixed(2)} GST ({item.gstRate}%)
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </article>
               ))}

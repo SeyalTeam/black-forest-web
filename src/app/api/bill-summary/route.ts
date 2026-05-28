@@ -153,7 +153,7 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
         id: toTrimmedText(item.id) || toTrimmedText(product?.id) || crypto.randomUUID(),
         name: toTrimmedText(item.name) || toTrimmedText(product?.name) || "Unknown item",
         quantity: Math.max(1, toFiniteNumber(item.quantity) || 1),
-        subtotal: toFiniteNumber(item.subtotal),
+        subtotal: toFiniteNumber(item.finalLineTotal ?? item.subtotal),
         status,
         isVeg: toBoolean(product?.isVeg),
         preparationTime: preparationTimeInfo.minutes,
@@ -161,7 +161,8 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
         preparationTimeUpdatedAt,
         orderedAt,
         preparedAt,
-      } satisfies BillSummaryItem;
+        gstRate: toFiniteNumber(item.gstRate),
+      } as BillSummaryItem;
     })
     .filter((item): item is BillSummaryItem => item !== null);
 }

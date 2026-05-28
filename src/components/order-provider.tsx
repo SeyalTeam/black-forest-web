@@ -120,7 +120,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
 
     const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
     const totalAmount = cartItems.reduce(
-      (sum, item) => sum + item.quantity * item.price,
+      (sum, item) => sum + item.quantity * (item.price + (item.price * (item.gst || 0)) / 100),
       0,
     );
 
