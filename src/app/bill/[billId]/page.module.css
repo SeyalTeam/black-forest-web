@@ -188,23 +188,10 @@
   font-weight: 900;
 }
 
-.itemPriceContainer {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-
 .itemPrice {
   color: #1f2430;
   font-size: 1.15rem;
   font-weight: 900;
-}
-
-.itemGstAmount {
-  color: #7b818d;
-  font-size: 0.8rem;
-  font-weight: 700;
 }
 
 .addMoreButton {

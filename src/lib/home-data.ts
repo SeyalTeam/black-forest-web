@@ -818,6 +818,8 @@ function readBranchScopedPrice(product: DynamicMap, branchId?: string) {
       toNumber(overrideDetails?.price);
     if (overridePrice > 0) {
       price = overridePrice;
+      acPrice = 0;
+      nonACPrice = 0;
     }
     const overrideAc = toNumber(overrideDetails?.acPrice);
     if (overrideAc > 0) {
@@ -831,24 +833,6 @@ function readBranchScopedPrice(product: DynamicMap, branchId?: string) {
 
   return { price, acPrice, nonACPrice };
 }
-
-function readBranchScopedGst(product: DynamicMap, branchId?: string) {
-  const defaultDetails = toMap(product.defaultPriceDetails);
-  let gstRaw = product.gst ?? defaultDetails?.gst;
-
-  if (branchId) {
-    const override = readBranchOverride(product, branchId);
-    if (override) {
-      const overrideGst = override.gst ?? toMap(override.defaultPriceDetails)?.gst;
-      if (overrideGst !== undefined && overrideGst !== null) {
-        gstRaw = overrideGst;
-      }
-    }
-  }
-
-  return gstRaw !== undefined && gstRaw !== null ? toNumber(gstRaw) : 0;
-}
-
 
 function readPreparationTimeFromNode(node: unknown) {
   const map = toMap(node);
@@ -946,7 +930,6 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
     hasExplicitOutOfStock: explicitOutOfStock !== null,
     isVeg,
     preparationTime,
-    gst: readBranchScopedGst(map, branchId),
   };
 }
 

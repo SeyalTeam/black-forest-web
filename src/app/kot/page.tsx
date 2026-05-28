@@ -1228,16 +1228,7 @@ export default function KotPage() {
                                 +
                               </button>
                             </div>
-                            <div className={styles.itemPriceContainer}>
-                              <div className={styles.itemPrice}>
-                                ₹{((item.price + (item.price * (item.gst || 0)) / 100) * item.quantity).toFixed(2)}
-                              </div>
-                              {(item.gst || 0) > 0 ? (
-                                <div className={styles.itemGstAmount}>
-                                  ₹{(item.price * item.quantity).toFixed(2)} + ₹{(((item.price * item.gst!) / 100) * item.quantity).toFixed(2)} GST ({item.gst}%)
-                                </div>
-                              ) : null}
-                            </div>
+                            <div className={styles.itemPrice}>₹{item.price * item.quantity}</div>
                           </div>
                         </article>
                       </div>
@@ -1303,14 +1294,7 @@ export default function KotPage() {
 
                       <div className={styles.previousItemActions}>
                         <div className={styles.readonlyQtyBox}>{item.quantity}</div>
-                        <div className={styles.itemPriceContainer}>
-                          <div className={styles.itemPrice}>₹{item.subtotal.toFixed(2)}</div>
-                          {item.gstRate ? (
-                            <div className={styles.itemGstAmount}>
-                              ₹{(item.subtotal / (1 + item.gstRate / 100)).toFixed(2)} + ₹{(item.subtotal - (item.subtotal / (1 + item.gstRate / 100))).toFixed(2)} GST ({item.gstRate}%)
-                            </div>
-                          ) : null}
-                        </div>
+                        <div className={styles.itemPrice}>₹{item.subtotal}</div>
                       </div>
                     </article>
                   );
