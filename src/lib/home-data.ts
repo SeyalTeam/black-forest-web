@@ -802,8 +802,8 @@ function isProductActiveForBranch(product: DynamicMap, branchId?: string) {
 function readBranchScopedPrice(product: DynamicMap, branchId?: string) {
   const defaultDetails = toMap(product.defaultPriceDetails);
   let price = toNumber(product.price) || toNumber(defaultDetails?.price);
-  let acPrice = toNumber(defaultDetails?.acPrice);
-  let nonACPrice = toNumber(defaultDetails?.nonACPrice);
+  let acPrice = toBool(defaultDetails?.enableAC) ? toNumber(defaultDetails?.acPrice) : 0;
+  let nonACPrice = toBool(defaultDetails?.enableNonAC) ? toNumber(defaultDetails?.nonACPrice) : 0;
 
   if (!branchId) {
     return { price, acPrice, nonACPrice };
@@ -821,11 +821,11 @@ function readBranchScopedPrice(product: DynamicMap, branchId?: string) {
       acPrice = 0;
       nonACPrice = 0;
     }
-    const overrideAc = toNumber(overrideDetails?.acPrice);
+    const overrideAc = toBool(overrideDetails?.enableAC) ? toNumber(overrideDetails?.acPrice) : 0;
     if (overrideAc > 0) {
       acPrice = overrideAc;
     }
-    const overrideNonAc = toNumber(overrideDetails?.nonACPrice);
+    const overrideNonAc = toBool(overrideDetails?.enableNonAC) ? toNumber(overrideDetails?.nonACPrice) : 0;
     if (overrideNonAc > 0) {
       nonACPrice = overrideNonAc;
     }
