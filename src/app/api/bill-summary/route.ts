@@ -149,6 +149,8 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
             )
           : "";
 
+      const gst = toTrimmedText(item.gst) || toTrimmedText((product?.defaultPriceDetails as any)?.gst) || "";
+
       return {
         id: toTrimmedText(item.id) || toTrimmedText(product?.id) || crypto.randomUUID(),
         name: toTrimmedText(item.name) || toTrimmedText(product?.name) || "Unknown item",
@@ -156,6 +158,7 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
         subtotal: toFiniteNumber(item.subtotal),
         status,
         isVeg: toBoolean(product?.isVeg),
+        gst,
         preparationTime: preparationTimeInfo.minutes,
         preparationTimeSource: preparationTimeInfo.source,
         preparationTimeUpdatedAt,

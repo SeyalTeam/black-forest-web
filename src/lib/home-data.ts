@@ -804,9 +804,10 @@ function readBranchScopedPrice(product: DynamicMap, branchId?: string) {
   let price = toNumber(product.price) || toNumber(defaultDetails?.price);
   let acPrice = toBool(defaultDetails?.enableAC) ? toNumber(defaultDetails?.acPrice) : 0;
   let nonACPrice = toBool(defaultDetails?.enableNonAC) ? toNumber(defaultDetails?.nonACPrice) : 0;
+  let gst = readText(product.gst) || readText(defaultDetails?.gst) || "";
 
   if (!branchId) {
-    return { price, acPrice, nonACPrice };
+    return { price, acPrice, nonACPrice, gst };
   }
 
   const override = readBranchOverride(product, branchId);
@@ -829,9 +830,13 @@ function readBranchScopedPrice(product: DynamicMap, branchId?: string) {
     if (overrideNonAc > 0) {
       nonACPrice = overrideNonAc;
     }
+    const overrideGst = readText(override.gst) || readText(overrideDetails?.gst) || "";
+    if (overrideGst) {
+      gst = overrideGst;
+    }
   }
 
-  return { price, acPrice, nonACPrice };
+  return { price, acPrice, nonACPrice, gst };
 }
 
 function readPreparationTimeFromNode(node: unknown) {
@@ -918,6 +923,7 @@ function normalizeProduct(productNode: unknown, branchId?: string): Product | nu
     price: prices.price,
     acPrice: prices.acPrice,
     nonACPrice: prices.nonACPrice,
+    gst: prices.gst,
     category: categoryName,
     categoryId,
     categoryImageUrl: category?.imageUrl ?? null,

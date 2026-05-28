@@ -1228,7 +1228,10 @@ export default function KotPage() {
                                 +
                               </button>
                             </div>
-                            <div className={styles.itemPrice}>₹{item.price * item.quantity}</div>
+                            <div className={styles.itemPrice}>
+                              ₹{item.price * item.quantity}
+                              {item.gst && item.gst !== "0" ? <span style={{ fontSize: "0.75em", color: "#6b7280", marginLeft: "2px" }}>+{item.gst}% GST</span> : null}
+                            </div>
                           </div>
                         </article>
                       </div>
@@ -1294,7 +1297,10 @@ export default function KotPage() {
 
                       <div className={styles.previousItemActions}>
                         <div className={styles.readonlyQtyBox}>{item.quantity}</div>
-                        <div className={styles.itemPrice}>₹{item.subtotal}</div>
+                        <div className={styles.itemPrice}>
+                          ₹{item.subtotal}
+                          {item.gst && item.gst !== "0" ? <span style={{ fontSize: "0.75em", color: "#6b7280", marginLeft: "2px" }}>+{item.gst}% GST</span> : null}
+                        </div>
                       </div>
                     </article>
                   );

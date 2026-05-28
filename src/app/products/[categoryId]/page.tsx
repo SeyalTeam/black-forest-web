@@ -387,7 +387,10 @@ export default function ProductsPage() {
                     <div className={styles.productBody}>
                       <div className={styles.productTitle}>{product.name}</div>
                       <div className={styles.productFooter}>
-                        <div className={styles.priceText}>₹{product.price}</div>
+                        <div className={styles.priceText}>
+                          ₹{product.price}
+                          {product.gst && product.gst !== "0" ? <span style={{ fontSize: "0.75em", color: "#6b7280", marginLeft: "2px" }}>+{product.gst}% GST</span> : null}
+                        </div>
 
                         {isOutOfStock ? (
                           <span className={styles.stockStatus}>OS</span>

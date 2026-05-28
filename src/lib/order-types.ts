@@ -4,6 +4,7 @@ export type Product = {
   price: number;
   acPrice?: number;
   nonACPrice?: number;
+  gst?: string;
   category: string;
   categoryId: string;
   categoryImageUrl?: string | null;
@@ -91,6 +92,7 @@ export type BillSummaryItem = {
   subtotal: number;
   status: string;
   isVeg: boolean;
+  gst?: string;
   preparationTime: number | null;
   preparationTimeSource: "billing-item" | "product-default" | "none";
   preparationTimeUpdatedAt: string;
