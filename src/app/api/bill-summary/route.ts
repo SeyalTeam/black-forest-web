@@ -164,7 +164,7 @@ function parseItems(value: unknown, billCreatedAt: string): BillSummaryItem[] {
         preparationTimeUpdatedAt,
         orderedAt,
         preparedAt,
-      } satisfies BillSummaryItem;
+      } as BillSummaryItem;
     })
     .filter((item): item is BillSummaryItem => item !== null);
 }
