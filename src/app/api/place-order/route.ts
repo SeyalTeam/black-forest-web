@@ -519,6 +519,7 @@ async function readResponseMessage(response: Response) {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
+      billId?: string;
       branchId?: string;
       tableNumber?: string;
       preferredSection?: string;
@@ -530,6 +531,7 @@ export async function POST(request: NextRequest) {
       items?: IncomingOrderItem[];
     };
 
+    const billIdInput = toTrimmedText(body.billId);
     const branchId = toTrimmedText(body.branchId);
     const tableNumberInput = toTrimmedText(body.tableNumber);
     const preferredSection = toTrimmedText(body.preferredSection);
@@ -593,17 +595,17 @@ export async function POST(request: NextRequest) {
     let existingBill: Record<string, unknown> | null = null;
     let existingBillLookupTarget: { tableNumber: string; section: string } | null = null;
 
-    if (preferredSection) {
-      if (preferredSection !== SHARED_TABLE_SECTION) {
-        existingBill = await findExistingOpenBill({
-          tableNumber: tableNumberInput,
-          sectionName: preferredSection,
-          branchId,
-          token,
-        });
-      } else {
-        existingBill = null;
+    if (billIdInput) {
+      const billResp = await fetch(`${API_BASE}/billings/${billIdInput}?depth=0`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (billResp.ok) {
+        existingBill = (await billResp.json()) as Record<string, unknown>;
       }
+    }
+
+    if (preferredSection) {
       existingBillLookupTarget = {
         tableNumber: tableNumberInput,
         section: preferredSection,
@@ -643,30 +645,8 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(", ");
 
-    const hasExistingLookupForResolvedTarget =
-      existingBillLookupTarget !== null &&
-      existingBillLookupTarget.tableNumber === tableNumber &&
-      normalizeSectionKey(existingBillLookupTarget.section) ===
-      normalizeSectionKey(sectionName);
-
-    if (!hasExistingLookupForResolvedTarget) {
-      if (sectionName !== SHARED_TABLE_SECTION) {
-        existingBill = await findExistingOpenBill({
-          tableNumber,
-          sectionName,
-          branchId,
-          token,
-        });
-      } else {
-        existingBill = null;
-      }
-      existingBillLookupTarget = {
-        tableNumber,
-        section: sectionName,
-      };
-    } else if (sectionName === SHARED_TABLE_SECTION) {
-      existingBill = null;
-    }
+    // We intentionally disable auto-merging based on table number/section
+    // If there is an existingBill, it was explicitly fetched via billIdInput
 
     const existingId = toTrimmedText(existingBill?.id);
     const existingItems = Array.isArray(existingBill?.items)

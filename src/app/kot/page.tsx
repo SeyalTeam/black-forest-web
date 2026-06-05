@@ -860,6 +860,7 @@ export default function KotPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          billId: matchingPreviousBill?.billId,
           branchId,
           branchName,
           tableNumber: trimmedTableNumber,
