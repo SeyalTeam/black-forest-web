@@ -38,8 +38,8 @@ function parseTokenMap(raw: string) {
     const separatorIndex = normalizedEntry.search(/[=:]/);
     if (separatorIndex <= 0) continue;
 
-    const branchId = normalizedEntry.slice(0, separatorIndex).trim();
-    const token = normalizedEntry.slice(separatorIndex + 1).trim();
+    const branchId = normalizedEntry.slice(0, separatorIndex).trim().replace(/^['"]|['"]$/g, "");
+    const token = normalizedEntry.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, "");
     if (branchId && token) {
       tokenMap.set(branchId, token);
     }

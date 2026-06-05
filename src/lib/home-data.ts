@@ -15,7 +15,7 @@ const DEFAULT_BRANCH_ID =
   process.env.DEFAULT_BRANCH_ID?.trim() ||
   process.env.NEXT_PUBLIC_DEFAULT_BRANCH_ID?.trim() ||
   "6906dc71896efbd4bc64d028";
-const TOP_CATEGORY_RULE_NAME = "top categories";
+
 const INVENTORY_FETCH_BATCH_SIZE = 4;
 const INVENTORY_FETCH_TIMEOUT_MS = 6_000;
 const INVENTORY_SNAPSHOT_MAX_PRODUCTS = 24;
@@ -1428,7 +1428,6 @@ async function fetchTopCategories(widgetSettings: unknown, branchId: string) {
   const payload = await fetchBranchRuleCategories(
     widgetSettings,
     branchId,
-    TOP_CATEGORY_RULE_NAME,
   );
   return payload.categories;
 }
