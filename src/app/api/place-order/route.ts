@@ -594,22 +594,26 @@ export async function POST(request: NextRequest) {
     let existingBillLookupTarget: { tableNumber: string; section: string } | null = null;
 
     if (preferredSection) {
-      existingBill = await findExistingOpenBill({
-        tableNumber: tableNumberInput,
-        sectionName: preferredSection,
-        branchId,
-        token,
-      });
+      if (preferredSection !== SHARED_TABLE_SECTION) {
+        existingBill = await findExistingOpenBill({
+          tableNumber: tableNumberInput,
+          sectionName: preferredSection,
+          branchId,
+          token,
+        });
+      } else {
+        existingBill = null;
+      }
       existingBillLookupTarget = {
         tableNumber: tableNumberInput,
         section: preferredSection,
       };
 
-      if (existingBill || isTableLocked) {
+      if (existingBill || isTableLocked || preferredSection === SHARED_TABLE_SECTION) {
         resolvedTarget = {
           tableNumber: tableNumberInput,
           section: preferredSection,
-          useShared: false,
+          useShared: preferredSection === SHARED_TABLE_SECTION,
         };
       }
     }
@@ -646,16 +650,22 @@ export async function POST(request: NextRequest) {
       normalizeSectionKey(sectionName);
 
     if (!hasExistingLookupForResolvedTarget) {
-      existingBill = await findExistingOpenBill({
-        tableNumber,
-        sectionName,
-        branchId,
-        token,
-      });
+      if (sectionName !== SHARED_TABLE_SECTION) {
+        existingBill = await findExistingOpenBill({
+          tableNumber,
+          sectionName,
+          branchId,
+          token,
+        });
+      } else {
+        existingBill = null;
+      }
       existingBillLookupTarget = {
         tableNumber,
         section: sectionName,
       };
+    } else if (sectionName === SHARED_TABLE_SECTION) {
+      existingBill = null;
     }
 
     const existingId = toTrimmedText(existingBill?.id);
