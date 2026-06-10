@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { COOKIE_ADMIN_TOKEN_KEY } from "@/components/branch-session";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 
-const API_BASE = "https://blackforest2.vseyal.com/api";
+const API_BASE = "https://blackforest.vseyal.com/api";
 
 export const runtime = "nodejs";
 

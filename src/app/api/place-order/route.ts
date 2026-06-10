@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 
-const API_BASE = "https://blackforest2.vseyal.com/api";
+const API_BASE = "https://blackforest.vseyal.com/api";
 const SHARED_TABLE_SECTION = "Shared Tables";
 const ACTIVE_BILL_STATUSES = "pending,ordered,confirmed,prepared,delivered";
 
@@ -605,22 +605,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (preferredSection) {
-      existingBillLookupTarget = {
-        tableNumber: tableNumberInput,
-        section: preferredSection,
-      };
+    if (!existingBill && incomingCustomerDetails?.phoneNumber) {
+      const lookupParams = new URLSearchParams({
+        "where[status][in]": ACTIVE_BILL_STATUSES,
+        "where[customerDetails.phoneNumber][equals]": incomingCustomerDetails.phoneNumber.trim(),
+        "where[branch][equals]": branchId.trim(),
+        "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
+        limit: "1",
+        sort: "-updatedAt",
+        depth: "0",
+      });
 
-      if (existingBill || isTableLocked || preferredSection === SHARED_TABLE_SECTION) {
-        resolvedTarget = {
-          tableNumber: tableNumberInput,
-          section: preferredSection,
-          useShared: preferredSection === SHARED_TABLE_SECTION,
-        };
+      const lookupResponse = await fetch(`${API_BASE}/billings?${lookupParams.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+
+      if (lookupResponse.ok) {
+        const lookupPayload = (await lookupResponse.json()) as BillingLookupResponse;
+        if (lookupPayload.docs && lookupPayload.docs.length > 0) {
+          existingBill = lookupPayload.docs[0];
+        }
       }
     }
 
-    if (!resolvedTarget) {
+    if (existingBill) {
+      const tableDetails = readRecord(existingBill.tableDetails);
+      resolvedTarget = {
+        tableNumber: toTrimmedText(tableDetails?.tableNumber) || tableNumberInput,
+        section: toTrimmedText(tableDetails?.section) || preferredSection || SHARED_TABLE_SECTION,
+        useShared: false,
+      };
+    } else {
       resolvedTarget = await resolveTableTarget({
         tableNumberInput,
         branchId,
@@ -629,8 +645,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const tableNumber = resolvedTarget.tableNumber;
+
+    let tableNumber = resolvedTarget.tableNumber;
     const sectionName = resolvedTarget.section;
+
+    if (sectionName === SHARED_TABLE_SECTION && !tableNumber.includes("-")) {
+      const ms = Date.now().toString();
+      tableNumber = `${tableNumber}-${ms.slice(-3)}`;
+    }
 
     const newTotalAmount = billingItems.reduce(
       (sum, item) => sum + toFiniteNumber(item.subtotal),

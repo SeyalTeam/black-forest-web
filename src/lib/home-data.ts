@@ -10,7 +10,7 @@ import type {
   RuleSection,
 } from "@/lib/order-types";
 
-const API_BASE = "https://blackforest2.vseyal.com/api";
+const API_BASE = "https://blackforest.vseyal.com/api";
 const DEFAULT_BRANCH_ID =
   process.env.DEFAULT_BRANCH_ID?.trim() ||
   process.env.NEXT_PUBLIC_DEFAULT_BRANCH_ID?.trim() ||
@@ -641,9 +641,9 @@ function normalizeImageUrl(value: unknown): string | null {
   if (text.startsWith("data:image/")) return text;
   if (text.startsWith("http://") || text.startsWith("https://")) return text;
   if (text.startsWith("//")) return `https:${text}`;
-  if (text.startsWith("/")) return `https://blackforest2.vseyal.com${text}`;
-  if (text.startsWith("blackforest2.vseyal.com")) return `https://${text}`;
-  if (text.startsWith("blackforest.vseyal.com")) return `https://${text.replace("blackforest.vseyal.com", "blackforest2.vseyal.com")}`;
+  if (text.startsWith("/")) return `https://blackforest.vseyal.com${text}`;
+  if (text.startsWith("blackforest.vseyal.com")) return `https://${text}`;
+  if (text.startsWith("blackforest.vseyal.com")) return `https://${text.replace("blackforest.vseyal.com", "blackforest.vseyal.com")}`;
   const lower = text.toLowerCase();
   const looksLikeFile =
     lower.endsWith(".png") ||
@@ -660,7 +660,7 @@ function normalizeImageUrl(value: unknown): string | null {
     text.startsWith("api/") ||
     looksLikeFile
   ) {
-    return `https://blackforest2.vseyal.com/${text}`;
+    return `https://blackforest.vseyal.com/${text}`;
   }
   return null;
 }
