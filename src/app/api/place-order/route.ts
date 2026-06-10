@@ -179,10 +179,9 @@ async function findOccupiedSectionsForTable({
 }) {
   const lookupParams = new URLSearchParams({
     "where[status][in]": ACTIVE_BILL_STATUSES,
-    "where[tableDetails.tableNumber][equals]": tableNumber,
     "where[createdAt][greater_than_equal]": getIndiaDayStartIso(),
     "where[branch][equals]": branchId,
-    limit: "100",
+    limit: "500",
     depth: "0",
   });
 
@@ -200,9 +199,13 @@ async function findOccupiedSectionsForTable({
   const occupiedSections = new Set<string>();
 
   for (const doc of payload.docs ?? []) {
-    const sectionName = toTrimmedText(readRecord(doc.tableDetails)?.section);
-    if (!sectionName) continue;
-    occupiedSections.add(normalizeSectionKey(sectionName));
+    const tableDetails = readRecord(doc.tableDetails);
+    if (toTrimmedText(tableDetails?.tableNumber) === tableNumber) {
+      const sectionName = toTrimmedText(tableDetails?.section);
+      if (sectionName) {
+        occupiedSections.add(normalizeSectionKey(sectionName));
+      }
+    }
   }
 
   return occupiedSections;
@@ -290,6 +293,25 @@ async function resolveTableTarget({
     branchId,
     token,
   });
+
+  if (preferredSection) {
+    const normalizedPref = normalizeSectionKey(preferredSection);
+    const matchedLive = liveSections.find(s => normalizeSectionKey(s) === normalizedPref);
+    if (matchedLive) {
+      if (occupiedSections.has(normalizedPref)) {
+        return {
+          tableNumber,
+          section: SHARED_TABLE_SECTION,
+          useShared: true,
+        };
+      }
+      return {
+        tableNumber,
+        section: matchedLive,
+        useShared: false,
+      };
+    }
+  }
 
   for (const liveSection of liveSections) {
     if (!occupiedSections.has(normalizeSectionKey(liveSection))) {
