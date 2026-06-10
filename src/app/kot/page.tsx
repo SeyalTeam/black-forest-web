@@ -602,10 +602,23 @@ export default function KotPage() {
       : "Shared Tables";
   const sectionChipLabel = preferredSection.trim() || previousBillData?.section || "";
   const showDetailedTableChips = Boolean(trimmedTableNumber || sectionChipLabel);
+  
+  const isSharedTableMatch = Boolean(
+    previousBillData &&
+    trimmedTableNumber &&
+    previousBillData.section?.toLowerCase() === "shared tables" &&
+    previousBillData.tableNumber?.startsWith(`${trimmedTableNumber}-`)
+  );
+
   const matchingPreviousBill =
     previousBillData &&
-    (!trimmedTableNumber || previousBillData.tableNumber === trimmedTableNumber) &&
-    (!sectionChipLabel || !previousBillData.section || previousBillData.section === sectionChipLabel)
+    (
+      (
+        (!trimmedTableNumber || previousBillData.tableNumber === trimmedTableNumber) &&
+        (!sectionChipLabel || !previousBillData.section || previousBillData.section === sectionChipLabel)
+      ) ||
+      isSharedTableMatch
+    )
       ? previousBillData
       : null;
   const hasCurrentItems = cartItems.length > 0;
