@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { resolveApiTokenForBranch } from "@/lib/api-token";
 
-const API_BASE = "https://blackforest.vseyal.com/api";
+const API_BASE = "https://blackforest2.vseyal.com/api";
 const SHARED_TABLE_SECTION = "Shared Tables";
 const ACTIVE_BILL_STATUSES = "pending,ordered,confirmed,prepared,delivered";
 
