@@ -112,34 +112,18 @@ function parseSections(value: unknown) {
     );
 }
 
-async function resolveLiveSectionsForTableNumber({
+function resolveLiveSectionsForTableNumber({
   tableNumber,
-  branchId,
-  token,
+  tablesDocs,
   preferredSection,
 }: {
   tableNumber: number;
-  branchId: string;
-  token: string;
+  tablesDocs: Array<Record<string, unknown>>;
   preferredSection?: string;
 }) {
-  const tablesUrl = `${API_BASE}/tables?where[branch][equals]=${encodeURIComponent(branchId)}&limit=100&depth=1`;
-  const response = await fetch(tablesUrl, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    return [];
-  }
-
-  const payload = (await response.json()) as {
-    docs?: Array<Record<string, unknown>>;
-  };
   const sectionNames = new Set<string>();
 
-  for (const root of payload.docs ?? []) {
+  for (const root of tablesDocs ?? []) {
     const sections = parseSections(root.sections);
     for (const section of sections) {
       if (tableNumber > 0 && tableNumber <= section.tableCount && section.name) {
@@ -162,6 +146,48 @@ async function resolveLiveSectionsForTableNumber({
     }
     return leftIsPreferred ? -1 : 1;
   });
+}
+
+function findAllocatedWaiter({
+  tablesDocs,
+  sectionName,
+  tableNumber,
+}: {
+  tablesDocs: Array<Record<string, unknown>>;
+  sectionName: string;
+  tableNumber: string;
+}): string | null {
+  const normalizedSection = sectionName.trim().toLowerCase();
+  const normalizedTable = tableNumber.trim();
+
+  for (const doc of tablesDocs) {
+    const sections = Array.isArray(doc.sections) ? doc.sections : [];
+    for (const section of sections) {
+      const secMap = section && typeof section === "object" ? (section as Record<string, unknown>) : null;
+      if (!secMap) continue;
+
+      const currentSecName = typeof secMap.name === "string" ? secMap.name.trim().toLowerCase() : "";
+      if (currentSecName === normalizedSection) {
+        const waiterAllocations = Array.isArray(secMap.waiterAllocations) ? secMap.waiterAllocations : [];
+        for (const alloc of waiterAllocations) {
+          const allocMap = alloc && typeof alloc === "object" ? (alloc as Record<string, unknown>) : null;
+          if (!allocMap) continue;
+
+          const tNum = typeof allocMap.tableNumber === "string"
+            ? allocMap.tableNumber.trim()
+            : typeof allocMap.tableNumber === "number"
+              ? String(allocMap.tableNumber)
+              : "";
+
+          if (tNum === normalizedTable) {
+            const waiterId = extractRefId(allocMap.waiter);
+            if (waiterId) return waiterId;
+          }
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function normalizeSectionKey(value: string) {
@@ -256,11 +282,13 @@ async function findExistingOpenBill({
 async function resolveTableTarget({
   tableNumberInput,
   branchId,
+  tablesDocs,
   token,
   preferredSection,
 }: {
   tableNumberInput: string;
   branchId: string;
+  tablesDocs: Array<Record<string, unknown>>;
   token: string;
   preferredSection?: string;
 }) {
@@ -274,10 +302,9 @@ async function resolveTableTarget({
     };
   }
 
-  const liveSections = await resolveLiveSectionsForTableNumber({
+  const liveSections = resolveLiveSectionsForTableNumber({
     tableNumber: parsedTable,
-    branchId,
-    token,
+    tablesDocs,
     preferredSection,
   });
   if (liveSections.length === 0) {
@@ -651,6 +678,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let tablesDocs: Array<Record<string, unknown>> = [];
     if (existingBill) {
       const tableDetails = readRecord(existingBill.tableDetails);
       resolvedTarget = {
@@ -659,11 +687,33 @@ export async function POST(request: NextRequest) {
         useShared: false,
       };
     } else {
+      const tablesUrl = `${API_BASE}/tables?where[branch][equals]=${encodeURIComponent(branchId)}&limit=100&depth=1`;
+      const tablesResponse = await fetch(tablesUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+      if (tablesResponse.ok) {
+        const payload = (await tablesResponse.json()) as { docs?: Array<Record<string, unknown>> };
+        tablesDocs = payload.docs ?? [];
+      }
+
       resolvedTarget = await resolveTableTarget({
         tableNumberInput,
         branchId,
+        tablesDocs,
         token,
         preferredSection,
+      });
+    }
+
+    let waiterId: string | null = null;
+    if (!existingBill && tablesDocs.length > 0 && resolvedTarget) {
+      waiterId = findAllocatedWaiter({
+        tablesDocs,
+        sectionName: resolvedTarget.section,
+        tableNumber: resolvedTarget.tableNumber,
       });
     }
 
@@ -712,7 +762,12 @@ export async function POST(request: NextRequest) {
         section: sectionName,
         tableNumber,
       },
+      isQrOrder: true,
     };
+
+    if (!existingId && waiterId) {
+      payload.createdBy = waiterId;
+    }
 
     const mergedNotes = mergeNotes(existingBill?.notes, newNotes);
     if (mergedNotes) {
