@@ -6,15 +6,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   readActiveBillSession,
   readBranchSession,
-} from "@/components/branch-session";
+} from "@/components/frontend/branch-session";
 import {
   CallWaiterIcon,
   CartIcon,
   HomeNavIcon,
   MenuNavIcon,
-} from "@/components/menu-icons";
-import { useOrder } from "@/components/order-provider";
+} from "@/components/frontend/menu-icons";
+import { useOrder } from "@/components/frontend/order-provider";
 import { prefetchCategoriesPageData } from "@/lib/session-cache";
+import { apiUrl } from "@/lib/api";
 import styles from "./bottom-nav.module.css";
 
 const WAITER_COOLDOWN_SECONDS = 30;
@@ -230,7 +231,7 @@ export function BottomNav() {
     setWaiterCallMessage("Sending waiter call to billing app...");
 
     try {
-      const response = await fetch("/api/call-waiter", {
+      const response = await fetch(apiUrl("/api/call-waiter"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

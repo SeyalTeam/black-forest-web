@@ -3,17 +3,17 @@
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { readBranchSession } from "@/components/branch-session";
-import { BottomNav } from "@/components/bottom-nav";
+import { readBranchSession } from "@/components/frontend/branch-session";
+import { BottomNav } from "@/components/frontend/bottom-nav";
 import {
   BackIcon,
   ChevronRightIcon,
   PrepTimeIcon,
   SearchIcon,
   VegIcon,
-} from "@/components/menu-icons";
-import styles from "@/components/menu.module.css";
-import { productAvatarLabel, useOrder } from "@/components/order-provider";
+} from "@/components/frontend/menu-icons";
+import styles from "@/components/frontend/menu.module.css";
+import { productAvatarLabel, useOrder } from "@/components/frontend/order-provider";
 import type { Product, ProductsPageData } from "@/lib/order-types";
 import {
   getProductsCacheKey,
@@ -22,7 +22,8 @@ import {
   writeSessionCache,
 } from "@/lib/session-cache";
 import { applySectionPrice } from "@/lib/price-utils";
-import { readTableSession } from "@/components/branch-session";
+import { readTableSession } from "@/components/frontend/branch-session";
+import { apiUrl } from "@/lib/api";
 
 const PRODUCTS_REFRESH_INTERVAL_MS = 30_000;
 
@@ -121,7 +122,7 @@ export default function ProductsPage() {
           query.set("categoryName", categoryNameFromQuery);
         }
 
-        const response = await fetch(`/api/products-data?${query.toString()}`);
+        const response = await fetch(apiUrl(`/api/products-data?${query.toString()}`));
         if (!response.ok) {
           throw new Error("Failed to load products");
         }
@@ -174,7 +175,7 @@ export default function ProductsPage() {
           query.set("categoryName", categoryNameFromQuery);
         }
 
-        const response = await fetch(`/api/products-data?${query.toString()}`);
+        const response = await fetch(apiUrl(`/api/products-data?${query.toString()}`));
         if (!response.ok) {
           throw new Error("Failed to load products");
         }
@@ -229,13 +230,20 @@ export default function ProductsPage() {
 
   const visibleProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      return pageData?.products ?? [];
-    }
+    const baseProducts = (() => {
+      if (!query) {
+        return pageData?.products ?? [];
+      }
+      return (pageData?.products ?? []).filter((product) =>
+        product.name.toLowerCase().includes(query),
+      );
+    })();
 
-    return (pageData?.products ?? []).filter((product) =>
-      product.name.toLowerCase().includes(query),
-    );
+    return [...baseProducts].sort((a, b) => {
+      const aStock = a.isOutOfStock ? 1 : 0;
+      const bStock = b.isOutOfStock ? 1 : 0;
+      return aStock - bStock;
+    });
   }, [pageData?.products, searchQuery]);
 
   const previewItems = useMemo(

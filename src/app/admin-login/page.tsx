@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useMemo, useState } from "react";
+import { apiUrl } from "@/lib/api";
 import styles from "./page.module.css";
 
 function toSafeNextPath(input: string) {
@@ -47,7 +48,7 @@ function AdminLoginContent() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!username.trim() || !password.trim()) {
-      setErrorMessage("Enter superadmin email and password.");
+      setErrorMessage("Enter email and password.");
       return;
     }
 
@@ -55,7 +56,7 @@ function AdminLoginContent() {
     setErrorMessage("");
 
     try {
-      const response = await fetch("/api/admin-login", {
+      const response = await fetch(apiUrl("/api/admin-login"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -87,14 +88,14 @@ function AdminLoginContent() {
       <section className={styles.card}>
         <h1 className={styles.title}>Admin Login</h1>
         <p className={styles.subtitle}>
-          Login with superadmin email/password to enable drag-and-reorder on favorites.
+          Login with admin, superadmin, or account email/password to enable drag-and-reorder on favorites.
         </p>
 
         <form onSubmit={handleSubmit}>
           <div className={styles.fields}>
             <div className={styles.field}>
               <label htmlFor="admin-username" className={styles.label}>
-                Superadmin Email
+                Email
               </label>
               <input
                 id="admin-username"
@@ -104,7 +105,7 @@ function AdminLoginContent() {
                 onChange={(event) => setUsername(event.target.value)}
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="Enter superadmin email"
+                placeholder="Enter email"
               />
             </div>
 

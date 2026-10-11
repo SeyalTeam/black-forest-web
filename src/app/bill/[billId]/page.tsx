@@ -7,8 +7,8 @@ import {
   readActiveBillSession,
   readBranchSession,
   writeActiveBillSession,
-} from "@/components/branch-session";
-import { BottomNav } from "@/components/bottom-nav";
+} from "@/components/frontend/branch-session";
+import { BottomNav } from "@/components/frontend/bottom-nav";
 import {
   BackIcon,
   BellIcon,
@@ -19,10 +19,11 @@ import {
   TableIcon,
   UpiIcon,
   VegIcon,
-} from "@/components/menu-icons";
+} from "@/components/frontend/menu-icons";
 import { BILLING_DISABLED_MESSAGE, BILLING_ENABLED } from "@/lib/billing-config";
 import type { BillSummaryData } from "@/lib/order-types";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
+import { apiUrl } from "@/lib/api";
 import styles from "./page.module.css";
 
 const BILL_CACHE_KEY_PREFIX = "blackforest-order-web-bill:";
@@ -42,6 +43,7 @@ export default function BillSummaryPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("cash");
   const [billError, setBillError] = useState("");
   const [isSubmittingBill, setIsSubmittingBill] = useState(false);
+  const [upiBankTransactionId, setUpiBankTransactionId] = useState("");
 
   const applyBillSummary = useCallback((summary: BillSummaryData, cacheKey: string) => {
     setPageData(summary);
@@ -97,7 +99,10 @@ export default function BillSummaryPage() {
     const cacheKey = `${BILL_CACHE_KEY_PREFIX}${billId}`;
     const cached = readSessionCache<BillSummaryData>(cacheKey);
     if (cached) {
-      if (cached.status === "completed") {
+      const isCachedInactive = ["completed", "settled", "cancelled"].includes(
+        cached.status?.toLowerCase(),
+      );
+      if (isCachedInactive) {
         goHomeAfterBillCompletion(cached.billId || billId);
         return;
       }
@@ -115,7 +120,7 @@ export default function BillSummaryPage() {
       setErrorMessage("");
 
       try {
-        const response = await fetch(`/api/bill-summary?billId=${encodeURIComponent(billId)}`, {
+        const response = await fetch(apiUrl(`/api/bill-summary?billId=${encodeURIComponent(billId)}`), {
           cache: "no-store",
         });
         if (!response.ok) {
@@ -125,7 +130,10 @@ export default function BillSummaryPage() {
 
         const payload = (await response.json()) as BillSummaryData;
         if (isDisposed) return;
-        if (payload.status === "completed") {
+        const isPayloadInactive = ["completed", "settled", "cancelled"].includes(
+          payload.status?.toLowerCase(),
+        );
+        if (isPayloadInactive) {
           goHomeAfterBillCompletion(payload.billId || billId);
           return;
         }
@@ -158,7 +166,7 @@ export default function BillSummaryPage() {
 
     const refreshBill = async () => {
       try {
-        const response = await fetch(`/api/bill-summary?billId=${encodeURIComponent(billId)}`, {
+        const response = await fetch(apiUrl(`/api/bill-summary?billId=${encodeURIComponent(billId)}`), {
           cache: "no-store",
         });
         if (!response.ok) {
@@ -169,7 +177,10 @@ export default function BillSummaryPage() {
         if (isDisposed) {
           return;
         }
-        if (payload.status === "completed") {
+        const isPayloadInactive = ["completed", "settled", "cancelled"].includes(
+          payload.status?.toLowerCase(),
+        );
+        if (isPayloadInactive) {
           goHomeAfterBillCompletion(payload.billId || billId);
           return;
         }
@@ -224,11 +235,16 @@ export default function BillSummaryPage() {
       return;
     }
 
+    if (selectedPaymentMethod === "upi" && !upiBankTransactionId.trim()) {
+      setBillError("Please enter the UPI Transaction ID / UTR.");
+      return;
+    }
+
     setIsSubmittingBill(true);
     setBillError("");
 
     try {
-      const response = await fetch("/api/complete-bill", {
+      const response = await fetch(apiUrl("/api/complete-bill"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -237,6 +253,7 @@ export default function BillSummaryPage() {
           billId: pageData.billId,
           paymentMethod: selectedPaymentMethod,
           branchId,
+          upiBankTransactionId,
         }),
       });
 
@@ -388,6 +405,22 @@ export default function BillSummaryPage() {
               );
             })}
           </div>
+
+          {selectedPaymentMethod === "upi" && (
+            <div className={styles.transactionInputRow}>
+              <input
+                type="text"
+                placeholder="Enter UPI Transaction ID / UTR"
+                value={upiBankTransactionId}
+                onChange={(e) => {
+                  setUpiBankTransactionId(e.target.value);
+                  setBillError("");
+                }}
+                className={styles.transactionInput}
+                disabled={isSubmittingBill}
+              />
+            </div>
+          )}
 
           <button
             type="button"

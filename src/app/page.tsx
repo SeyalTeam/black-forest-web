@@ -1,12 +1,13 @@
 import { cookies } from "next/headers";
-import HomePageClient from "@/components/home-page-client";
+import HomePageClient from "@/components/frontend/home-page-client";
 import {
   COOKIE_ADMIN_TOKEN_KEY,
   COOKIE_BRANCH_ID_KEY,
   COOKIE_BRANCH_NAME_KEY,
-} from "@/components/branch-session";
+} from "@/components/frontend/branch-session";
 import { fetchCurrentUser } from "@/lib/admin-auth";
-import { getHomePageData } from "@/lib/home-data";
+import { apiUrl } from "@/lib/api";
+import type { HomePageData } from "@/lib/order-types";
 
 type SearchParamValue = string | string[] | undefined;
 
@@ -42,6 +43,18 @@ function readCookieValue(value?: string) {
   }
 }
 
+async function fetchHomePageData(branchId: string): Promise<HomePageData | null> {
+  try {
+    const url = apiUrl(`/api/home-data${branchId ? `?branchId=${encodeURIComponent(branchId)}` : ""}`);
+    const response = await fetch(url, { next: { revalidate: 30 } });
+    if (!response.ok) return null;
+    return (await response.json()) as HomePageData;
+  } catch (error) {
+    console.warn("[HomePage] Failed to fetch initialHomeData during SSR:", error);
+    return null;
+  }
+}
+
 export default async function HomePage({ searchParams }: PageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const cookieStore = await cookies();
@@ -60,7 +73,7 @@ export default async function HomePage({ searchParams }: PageProps) {
   const cookieBranchId = readCookieValue(cookieStore.get(COOKIE_BRANCH_ID_KEY)?.value);
   const cookieBranchName = readCookieValue(cookieStore.get(COOKIE_BRANCH_NAME_KEY)?.value);
   const initialBranchId = requestedBranchId || cookieBranchId || "";
-  const initialHomeData = initialBranchId ? await getHomePageData(initialBranchId) : null;
+  const initialHomeData = initialBranchId ? await fetchHomePageData(initialBranchId) : null;
 
   return (
     <HomePageClient

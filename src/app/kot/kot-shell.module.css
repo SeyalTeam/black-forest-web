@@ -1170,3 +1170,8 @@
     font-size: 0.82rem;
   }
 }
+
+.transactionInputRow {
+  width: 100%;
+  margin-top: 4px;
+}

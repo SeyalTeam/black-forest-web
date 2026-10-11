@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   clearActiveBillSession,
@@ -8,8 +8,8 @@ import {
   readBranchSession,
   readTableSession,
   writeActiveBillSession,
-} from "@/components/branch-session";
-import { BottomNav } from "@/components/bottom-nav";
+} from "@/components/frontend/branch-session";
+import { BottomNav } from "@/components/frontend/bottom-nav";
 import {
   BackIcon,
   BellIcon,
@@ -22,11 +22,12 @@ import {
   TableIcon,
   UpiIcon,
   VegIcon,
-} from "@/components/menu-icons";
-import { useOrder } from "@/components/order-provider";
+} from "@/components/frontend/menu-icons";
+import { useOrder } from "@/components/frontend/order-provider";
 import type { BillSummaryData, BillSummaryItem } from "@/lib/order-types";
 import { BILLING_DISABLED_MESSAGE, BILLING_ENABLED } from "@/lib/billing-config";
 import { readSessionCache, writeSessionCache } from "@/lib/session-cache";
+import { apiUrl } from "@/lib/api";
 import styles from "./kot-shell.module.css";
 
 type CustomerDetailsConfig = {
@@ -102,6 +103,28 @@ function toNumber(value: unknown) {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+async function safeJsonFetch<T = Record<string, unknown>>(
+  url: string,
+  options?: RequestInit,
+): Promise<{ ok: boolean; status: number; payload: T | null }> {
+  try {
+    const finalUrl = url.startsWith("http") ? url : apiUrl(url);
+    const response = await fetch(finalUrl, options);
+    const text = await response.text();
+    let payload: T | null = null;
+    if (text) {
+      try {
+        payload = JSON.parse(text) as T;
+      } catch {
+        payload = null;
+      }
+    }
+    return { ok: response.ok, status: response.status, payload };
+  } catch {
+    return { ok: false, status: 0, payload: null };
+  }
 }
 
 function normalizeLookupBill(raw: unknown) {
@@ -258,50 +281,61 @@ function formatDurationClock(totalSeconds: number) {
 
 function parseDateOrClockTime(value: unknown, referenceDateText: string) {
   const input = typeof value === "string" ? value.trim() : "";
-  if (!input) {
-    return null;
+  if (input) {
+    const directDate = new Date(input);
+    if (!Number.isNaN(directDate.getTime())) {
+      return directDate.getTime();
+    }
   }
 
-  const directDate = new Date(input);
-  if (!Number.isNaN(directDate.getTime())) {
-    return directDate.getTime();
+  const refText = typeof referenceDateText === "string" ? referenceDateText.trim() : "";
+  const refDate = refText ? new Date(refText) : new Date();
+  const baseTimeMs = !Number.isNaN(refDate.getTime()) ? refDate.getTime() : Date.now();
+
+  if (!input) {
+    return baseTimeMs;
   }
 
   const timeMatch = input.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (!timeMatch) {
-    return null;
-  }
-
-  const referenceDate = referenceDateText ? new Date(referenceDateText) : new Date();
-  if (Number.isNaN(referenceDate.getTime())) {
-    return null;
+    return baseTimeMs;
   }
 
   const hours = Number.parseInt(timeMatch[1], 10);
   const minutes = Number.parseInt(timeMatch[2], 10);
   const seconds = Number.parseInt(timeMatch[3] ?? "0", 10);
-  if (
-    !Number.isFinite(hours) ||
-    !Number.isFinite(minutes) ||
-    !Number.isFinite(seconds) ||
-    hours < 0 ||
-    hours > 23 ||
-    minutes < 0 ||
-    minutes > 59 ||
-    seconds < 0 ||
-    seconds > 59
-  ) {
-    return null;
+
+  const baseInIst = new Date(baseTimeMs);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(baseInIst);
+
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  const year = parts.find((p) => p.type === "year")?.value ?? "1970";
+
+  const hh = String(hours).padStart(2, "0");
+  const mm = String(minutes).padStart(2, "0");
+  const ss = String(seconds).padStart(2, "0");
+
+  const targetIso = `${year}-${month}-${day}T${hh}:${mm}:${ss}+05:30`;
+  const targetDate = new Date(targetIso);
+  if (Number.isNaN(targetDate.getTime())) {
+    return baseTimeMs;
   }
 
-  const timestamp = new Date(referenceDate);
-  timestamp.setHours(hours, minutes, seconds, 0);
-
-  if (timestamp.getTime() - referenceDate.getTime() > 12 * 60 * 60 * 1000) {
-    timestamp.setDate(timestamp.getDate() - 1);
+  let targetTimeMs = targetDate.getTime();
+  const diff = targetTimeMs - baseTimeMs;
+  if (diff > 12 * 3600 * 1000) {
+    targetTimeMs -= 24 * 3600 * 1000;
+  } else if (diff < -12 * 3600 * 1000) {
+    targetTimeMs += 24 * 3600 * 1000;
   }
 
-  return timestamp.getTime();
+  return targetTimeMs;
 }
 
 function resolveOrderedTimestampMs(item: BillSummaryItem, billCreatedAt: string) {
@@ -338,32 +372,22 @@ function computePreparationRemainingSeconds(
   billCreatedAt: string,
   nowMs: number,
 ) {
-  if (item.preparationTime === null || item.preparationTime < 0) {
-    return null;
-  }
+  const prepMinutes =
+    typeof item.preparationTime === "number" && item.preparationTime > 0
+      ? item.preparationTime
+      : 15;
 
-  const preparationSeconds = Math.max(0, Math.round(item.preparationTime * 60));
-  const preparationStartTimestamp = resolvePreparationStartTimestampMs(
-    item,
-    billCreatedAt,
-  );
-  if (preparationStartTimestamp === null) {
-    return preparationSeconds;
-  }
+  const totalPreparationSeconds = Math.round(prepMinutes * 60);
+  const preparationStartTimestamp =
+    resolvePreparationStartTimestampMs(item, billCreatedAt) ??
+    parseDateOrClockTime(billCreatedAt, billCreatedAt) ??
+    nowMs;
 
   const elapsedSeconds = Math.max(
     0,
     Math.floor((nowMs - preparationStartTimestamp) / 1000),
   );
-  const startDelaySeconds =
-    item.preparationTimeSource === "billing-item"
-      ? 0
-      : PREPARATION_TIMER_START_DELAY_SECONDS;
-  const elapsedAfterDelay = Math.max(
-    0,
-    elapsedSeconds - startDelaySeconds,
-  );
-  return Math.max(0, preparationSeconds - elapsedAfterDelay);
+  return Math.max(0, totalPreparationSeconds - elapsedSeconds);
 }
 
 function formatBillBlockingItems(items: BillSummaryData["items"]) {
@@ -402,6 +426,8 @@ export default function KotPage() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [branchId, setBranchId] = useState("");
   const [branchName, setBranchName] = useState("VSeyal");
+  const [branchUpiId, setBranchUpiId] = useState("");
+  const [activePaymentMethod, setActivePaymentMethod] = useState("upi_direct");
   const [sharedTableNumber, setSharedTableNumber] = useState("");
   const [isQrTableLocked, setIsQrTableLocked] = useState(false);
   const [preferredSection, setPreferredSection] = useState("");
@@ -410,6 +436,7 @@ export default function KotPage() {
     useState<CustomerDetailsConfig>(defaultCustomerConfig);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [hasSubmittedCustomerDetails, setHasSubmittedCustomerDetails] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerPhoneDraft, setCustomerPhoneDraft] = useState("");
   const [customerNameDraft, setCustomerNameDraft] = useState("");
@@ -422,6 +449,7 @@ export default function KotPage() {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [isSubmittingBill, setIsSubmittingBill] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("cash");
+  const [upiBankTransactionId, setUpiBankTransactionId] = useState("");
   const [billError, setBillError] = useState("");
   const [showBillDisabledReason, setShowBillDisabledReason] = useState(false);
   const [orderMessage, setOrderMessage] = useState("");
@@ -443,6 +471,8 @@ export default function KotPage() {
       setHasAccess(true);
       setBranchId(session.branchId);
       setBranchName(session.branchName || "VSeyal");
+      setBranchUpiId(session.upiId || "");
+      setActivePaymentMethod(session.activePaymentMethod || "upi_direct");
       const tableSession = readTableSession(session.branchId);
       if (tableSession?.tableNumber) {
         setSharedTableNumber(tableSession.tableNumber);
@@ -468,7 +498,7 @@ export default function KotPage() {
     const loadCustomerConfig = async () => {
       try {
         const response = await fetch(
-          `/api/customer-details-config?branchId=${encodeURIComponent(branchId)}`,
+          apiUrl(`/api/customer-details-config?branchId=${encodeURIComponent(branchId)}`),
           { cache: "no-store" },
         );
         if (!response.ok) {
@@ -506,39 +536,87 @@ export default function KotPage() {
     }
 
     const activeBill = readActiveBillSession(branchId);
-    if (!activeBill?.billId) {
-      setPreviousBillData(null);
-      return;
-    }
-
-    if (activeBill.tableNumber) {
+    if (activeBill?.tableNumber) {
       setSharedTableNumber((current) => current.trim() || activeBill.tableNumber);
     }
-    if (activeBill.section) {
+    if (activeBill?.section) {
       setPreferredSection((current) => current.trim() || activeBill.section);
     }
-    if (activeBill.customerName) {
+    if (activeBill?.customerName) {
       setCustomerName((current) => current.trim() || activeBill.customerName);
     }
-    if (activeBill.customerPhone) {
+    if (activeBill?.customerPhone) {
       setCustomerPhone((current) => current.trim() || activeBill.customerPhone);
     }
 
     let isDisposed = false;
-    const cacheKey = `${BILL_CACHE_KEY_PREFIX}${activeBill.billId}`;
-    const cached = readSessionCache<BillSummaryData>(cacheKey);
+    const targetBillId = activeBill?.billId || "";
+    const cacheKey = targetBillId ? `${BILL_CACHE_KEY_PREFIX}${targetBillId}` : null;
+    const cached = cacheKey ? readSessionCache<BillSummaryData>(cacheKey) : null;
     if (cached) {
-      setPreviousBillData(cached);
+      const isCachedInactive = ["completed", "settled", "cancelled"].includes(
+        cached.status?.toLowerCase(),
+      );
+      if (isCachedInactive) {
+        clearActiveBillSession();
+        if (cached.billId) {
+          window.sessionStorage.removeItem(`${BILL_CACHE_KEY_PREFIX}${cached.billId}`);
+        }
+        setPreviousBillData(null);
+      } else {
+        setPreviousBillData(cached);
+      }
     }
 
     const loadPreviousBill = async () => {
       try {
-        const response = await fetch(
-          `/api/bill-summary?billId=${encodeURIComponent(activeBill.billId)}`,
-          { cache: "no-store" },
-        );
-        if (!response.ok) {
+        const queryParams = new URLSearchParams();
+        const currentActiveBill = readActiveBillSession(branchId);
+        const activeBillTableMatches =
+          !currentActiveBill?.tableNumber ||
+          !sharedTableNumber.trim() ||
+          currentActiveBill.tableNumber.trim().toLowerCase() === sharedTableNumber.trim().toLowerCase() ||
+          currentActiveBill.tableNumber.trim().toLowerCase().startsWith(`${sharedTableNumber.trim().toLowerCase()}-`) ||
+          sharedTableNumber.trim().toLowerCase().startsWith(`${currentActiveBill.tableNumber.trim().toLowerCase()}-`);
+        const activeBillSectionMatches =
+          !currentActiveBill?.section ||
+          !preferredSection.trim() ||
+          currentActiveBill.section.trim().toLowerCase() === preferredSection.trim().toLowerCase() ||
+          currentActiveBill.section.trim().toLowerCase() === "shared tables" ||
+          preferredSection.trim().toLowerCase() === "shared tables";
+
+        const billIdToUse =
+          activeBillTableMatches && activeBillSectionMatches ? currentActiveBill?.billId || "" : "";
+
+        if (billIdToUse) {
+          queryParams.set("billId", billIdToUse);
+          queryParams.set("branchId", branchId);
+        } else if (customerPhone.trim() || currentActiveBill?.customerPhone) {
+          queryParams.set("branchId", branchId);
+          queryParams.set("customerPhone", customerPhone.trim() || currentActiveBill?.customerPhone || "");
+        } else {
           if (!cached && !isDisposed) {
+            setPreviousBillData(null);
+          }
+          return;
+        }
+
+        if (!queryParams.has("billId") && !queryParams.has("tableNumber") && !queryParams.has("customerPhone")) {
+          if (!cached && !isDisposed) {
+            setPreviousBillData(null);
+          }
+          return;
+        }
+
+        const response = await fetch(apiUrl(`/api/bill-summary?${queryParams.toString()}`), { cache: "no-store" });
+        if (!response.ok) {
+          if (!isDisposed) {
+            if (billIdToUse) {
+              clearActiveBillSession();
+              if (targetBillId) {
+                window.sessionStorage.removeItem(`${BILL_CACHE_KEY_PREFIX}${targetBillId}`);
+              }
+            }
             setPreviousBillData(null);
           }
           return;
@@ -549,8 +627,66 @@ export default function KotPage() {
           return;
         }
 
+        const isInactive = ["completed", "settled", "cancelled"].includes(
+          payload.status?.toLowerCase(),
+        );
+
+        if (isInactive) {
+          clearActiveBillSession();
+          if (payload.billId) {
+            window.sessionStorage.removeItem(`${BILL_CACHE_KEY_PREFIX}${payload.billId}`);
+          }
+          setPreviousBillData(null);
+
+          if (billIdToUse) {
+            const tableQueryParams = new URLSearchParams();
+            tableQueryParams.set("branchId", branchId);
+            const currentTable = sharedTableNumber.trim();
+            if (currentTable) tableQueryParams.set("tableNumber", currentTable);
+            const currentSection = preferredSection.trim();
+            if (currentSection) tableQueryParams.set("section", currentSection);
+            if (customerPhone.trim()) tableQueryParams.set("customerPhone", customerPhone.trim());
+
+            if (tableQueryParams.has("tableNumber") || tableQueryParams.has("customerPhone")) {
+              const retryRes = await fetch(apiUrl(`/api/bill-summary?${tableQueryParams.toString()}`), {
+                cache: "no-store",
+              });
+              if (retryRes.ok && !isDisposed) {
+                const retryPayload = (await retryRes.json()) as BillSummaryData;
+                const isRetryInactive = ["completed", "settled", "cancelled"].includes(
+                  retryPayload.status?.toLowerCase(),
+                );
+                if (!isRetryInactive && retryPayload.billId) {
+                  setPreviousBillData(retryPayload);
+                  writeSessionCache(`${BILL_CACHE_KEY_PREFIX}${retryPayload.billId}`, retryPayload);
+                  writeActiveBillSession({
+                    branchId,
+                    billId: retryPayload.billId,
+                    tableNumber: retryPayload.tableNumber || sharedTableNumber,
+                    section: retryPayload.section || preferredSection,
+                    customerName: customerName.trim(),
+                    customerPhone: customerPhone.trim(),
+                  });
+                }
+              }
+            }
+          }
+          return;
+        }
+
         setPreviousBillData(payload);
-        writeSessionCache(cacheKey, payload);
+        if (payload.billId) {
+          writeSessionCache(`${BILL_CACHE_KEY_PREFIX}${payload.billId}`, payload);
+          writeActiveBillSession({
+            branchId,
+            billId: payload.billId,
+            tableNumber: payload.tableNumber || sharedTableNumber,
+            section: payload.section || preferredSection,
+            customerName: customerName.trim(),
+            customerPhone: customerPhone.trim(),
+          });
+        }
+
         if (payload.tableNumber) {
           setSharedTableNumber((current) => current.trim() || payload.tableNumber);
         }
@@ -580,7 +716,7 @@ export default function KotPage() {
       window.clearInterval(refreshTimerId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [branchId]);
+  }, [branchId, sharedTableNumber, preferredSection, customerPhone]);
 
   useEffect(() => {
     return () => {
@@ -602,25 +738,38 @@ export default function KotPage() {
       : "Shared Tables";
   const sectionChipLabel = preferredSection.trim() || previousBillData?.section || "";
   const showDetailedTableChips = Boolean(trimmedTableNumber || sectionChipLabel);
-  
-  const isSharedTableMatch = Boolean(
+
+  const prevTableBase = previousBillData?.tableNumber
+    ? previousBillData.tableNumber.split("-")[0].trim().toLowerCase()
+    : "";
+  const currentTableBase = trimmedTableNumber
+    ? trimmedTableNumber.split("-")[0].trim().toLowerCase()
+    : "";
+
+  const prevSection = previousBillData?.section
+    ? previousBillData.section.trim().toLowerCase()
+    : "";
+  const currentSection = preferredSection.trim().toLowerCase();
+  const isSectionMatch =
+    !prevSection ||
+    !currentSection ||
+    prevSection === currentSection ||
+    prevSection === "shared tables" ||
+    currentSection === "shared tables";
+
+  const isTableMatch = Boolean(
     previousBillData &&
-    trimmedTableNumber &&
-    previousBillData.section?.toLowerCase() === "shared tables" &&
-    previousBillData.tableNumber?.startsWith(`${trimmedTableNumber}-`)
+    isSectionMatch &&
+    (!trimmedTableNumber ||
+      !previousBillData.tableNumber ||
+      prevTableBase === currentTableBase ||
+      previousBillData.tableNumber.toLowerCase() === trimmedTableNumber.toLowerCase() ||
+      previousBillData.tableNumber.toLowerCase().startsWith(`${trimmedTableNumber.toLowerCase()}-`) ||
+      trimmedTableNumber.toLowerCase().startsWith(`${previousBillData.tableNumber.toLowerCase()}-`))
   );
 
   const matchingPreviousBill =
-    previousBillData &&
-    (
-      (
-        (!trimmedTableNumber || previousBillData.tableNumber === trimmedTableNumber) &&
-        (!sectionChipLabel || !previousBillData.section || previousBillData.section === sectionChipLabel)
-      ) ||
-      isSharedTableMatch
-    )
-      ? previousBillData
-      : null;
+    previousBillData && isTableMatch ? previousBillData : null;
   const hasCurrentItems = cartItems.length > 0;
   const hasPreviousItems = Boolean(matchingPreviousBill?.items.length);
   const showBillFooter = !hasCurrentItems && hasPreviousItems;
@@ -642,10 +791,29 @@ export default function KotPage() {
             undeliveredPreviousItems,
           )}.`
         : "";
+
+  const upiIntentUrl = useMemo(() => {
+    if (!branchUpiId || !matchingPreviousBill) return "";
+    const amount = (matchingPreviousBill.totalAmount ?? 0).toFixed(2);
+    const trId = matchingPreviousBill.billId || `TR${Date.now()}`;
+    return `upi://pay?pa=${branchUpiId}&pn=${encodeURIComponent(branchName)}&mc=5812&tr=${trId}&am=${amount}&cu=INR`;
+  }, [branchUpiId, branchName, matchingPreviousBill]);
+
   const normalizedCustomerPhoneDraft = normalizePhone(customerPhoneDraft);
+  const normalizedCustomerPhone = normalizePhone(customerPhone);
+  const isGenericCustomerName =
+    !customerName.trim() ||
+    customerName.trim().toLowerCase() === "customer" ||
+    customerName.trim().toLowerCase() === "cm";
   const hasExistingCustomerDetails =
-    customerName.trim().length > 0 || customerPhone.trim().length > 0;
-  const headerDisplayName = customerName.trim() || "Customer";
+    hasSubmittedCustomerDetails ||
+    normalizedCustomerPhone.length >= 10 ||
+    (!isGenericCustomerName && customerName.trim().length > 0) ||
+    Boolean(matchingPreviousBill?.billId);
+  const headerDisplayName =
+    customerName.trim() && customerName.trim().toLowerCase() !== "cm"
+      ? customerName.trim()
+      : "Customer";
   const canOpenCustomerHistory =
     customerConfig.showHistory &&
     normalizedCustomerPhoneDraft.length >= 10 &&
@@ -752,19 +920,22 @@ export default function KotPage() {
         return null;
       }
 
-      const response = await fetch(
-        `/api/billing/customer-lookup?branchId=${encodeURIComponent(
-          branchId,
-        )}&phoneNumber=${encodeURIComponent(normalizedPhone)}&limit=${limit}`,
-        { cache: "no-store" },
-      );
+      const url = `/api/billing/customer-lookup?branchId=${encodeURIComponent(
+        branchId,
+      )}&phoneNumber=${encodeURIComponent(normalizedPhone)}&limit=${limit}`;
 
-      const payload = (await response.json()) as Record<string, unknown> & { message?: string };
-      if (!response.ok) {
-        throw new Error(payload.message || "Unable to fetch customer details");
+      let res = await safeJsonFetch<Record<string, unknown> & { message?: string }>(url, { cache: "no-store" });
+      if (!res.ok) {
+        await new Promise((r) => setTimeout(r, 400));
+        res = await safeJsonFetch<Record<string, unknown> & { message?: string }>(url, { cache: "no-store" });
       }
 
-      return normalizeCustomerLookupPayload(payload, normalizedPhone, limit);
+      if (!res.ok || !res.payload) {
+        const errMsg = res.payload && typeof res.payload.message === "string" ? res.payload.message : "";
+        throw new Error(errMsg || "Unable to fetch customer details");
+      }
+
+      return normalizeCustomerLookupPayload(res.payload, normalizedPhone, limit);
     },
     [branchId],
   );
@@ -785,17 +956,19 @@ export default function KotPage() {
     query.set("where[or][0][phoneNumber][equals]", phone10);
     query.set("where[or][1][phoneNumber][equals]", phoneWithPrefix);
 
-    const response = await fetch(
-      `/api/billing-customers?${query.toString()}`,
-      { cache: "no-store" },
-    );
-
-    const payload = (await response.json()) as Record<string, unknown> & { message?: string };
-    if (!response.ok) {
-      throw new Error(payload.message || "Unable to fetch customer details");
+    const url = `/api/billing-customers?${query.toString()}`;
+    let res = await safeJsonFetch<Record<string, unknown> & { message?: string }>(url, { cache: "no-store" });
+    if (!res.ok) {
+      await new Promise((r) => setTimeout(r, 400));
+      res = await safeJsonFetch<Record<string, unknown> & { message?: string }>(url, { cache: "no-store" });
     }
 
-    return normalizeCustomerLookupLitePayload(payload, phone10);
+    if (!res.ok || !res.payload) {
+      const errMsg = res.payload && typeof res.payload.message === "string" ? res.payload.message : "";
+      throw new Error(errMsg || "Unable to fetch customer details");
+    }
+
+    return normalizeCustomerLookupLitePayload(res.payload, phone10);
   }, [branchId]);
 
   const openCustomerModal = () => {
@@ -867,7 +1040,7 @@ export default function KotPage() {
     setOrderMessage("");
 
     try {
-      const response = await fetch("/api/place-order", {
+      const response = await fetch(apiUrl("/api/place-order"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -937,6 +1110,7 @@ export default function KotPage() {
   };
 
   const submitCustomerDetails = async ({ skip }: { skip: boolean }) => {
+    setHasSubmittedCustomerDetails(true);
     if (skip) {
       setCustomerName("");
       setCustomerPhone("");
@@ -977,7 +1151,7 @@ export default function KotPage() {
     setBillError("");
 
     try {
-      const response = await fetch("/api/complete-bill", {
+      const response = await fetch(apiUrl("/api/complete-bill"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -986,6 +1160,7 @@ export default function KotPage() {
           billId: matchingPreviousBill.billId,
           paymentMethod: selectedPaymentMethod,
           branchId,
+          upiBankTransactionId: selectedPaymentMethod === "upi" ? upiBankTransactionId : undefined,
         }),
       });
 
@@ -1065,8 +1240,15 @@ export default function KotPage() {
           if (isDisposed || normalizePhone(customerPhoneDraft) !== normalizedPhone) {
             return;
           }
+          const rawMsg = error instanceof Error ? error.message : "";
+          const isRawSyntaxError =
+            rawMsg.includes("Unexpected token") ||
+            rawMsg.includes("is not valid JSON") ||
+            rawMsg.includes("<!DOCTYPE");
           setCustomerLookupError(
-            error instanceof Error ? error.message : "Unable to fetch customer details",
+            isRawSyntaxError
+              ? "Unable to fetch customer details. Please try again."
+              : rawMsg || "Unable to fetch customer details",
           );
         } finally {
           if (!isDisposed && normalizePhone(customerPhoneDraft) === normalizedPhone) {
@@ -1181,10 +1363,20 @@ export default function KotPage() {
 
         <div className={styles.chipRow}>
           {showDetailedTableChips ? (
-            <div className={styles.chip}>
-              <TableIcon className={styles.chipIconSvg} />
-              {tableChipLabel}
-            </div>
+            <>
+              {tableChipLabel ? (
+                <div className={styles.chip}>
+                  <TableIcon className={styles.chipIconSvg} />
+                  {tableChipLabel}
+                </div>
+              ) : null}
+              {sectionChipLabel ? (
+                <div className={styles.chip}>
+                  <PinIcon className={styles.chipIconSvg} />
+                  {sectionChipLabel}
+                </div>
+              ) : null}
+            </>
           ) : (
             <div className={styles.chip}>
               <PinIcon className={styles.chipIconSvg} />
@@ -1362,7 +1554,9 @@ export default function KotPage() {
                   );
                 })}
               </div>
-
+              
+              {/* UPI input moved to modal */}
+              
               <button
                 type="button"
                 className={`${styles.billButton} ${!canCompleteBill ? styles.billButtonDisabled : ""}`}
@@ -1374,7 +1568,57 @@ export default function KotPage() {
                   }
 
                   setShowBillDisabledReason(false);
-                  void completeBill();
+
+                  if (selectedPaymentMethod === "upi") {
+                    if (activePaymentMethod === "disabled") {
+                      // Waiter handles it
+                      void completeBill();
+                    } else if (activePaymentMethod === "hdfc_smartgateway") {
+                      // Call the new create-payment-session endpoint
+                      setIsSubmittingBill(true);
+                      fetch(apiUrl("/api/create-payment-session"), {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          amount: matchingPreviousBill?.totalAmount ?? 0,
+                          billId: matchingPreviousBill?.billId,
+                          customerId: "", 
+                          customerName: customerName,
+                          customerPhone: customerPhone,
+                        }),
+                      })
+                        .then((res) => res.json())
+                        .then((data) => {
+                          if (data.paymentUrl) {
+                            window.location.href = data.paymentUrl;
+                            setTimeout(() => {
+                              void completeBill();
+                            }, 1000);
+                          } else {
+                            setIsSubmittingBill(false);
+                            setBillError(data.message || "Failed to create payment session.");
+                          }
+                        })
+                        .catch(() => {
+                          setIsSubmittingBill(false);
+                          setBillError("Network error. Please try again.");
+                        });
+                    } else {
+                      // upi_direct
+                      if (upiIntentUrl) {
+                        window.location.href = upiIntentUrl;
+                        setTimeout(() => {
+                          void completeBill();
+                        }, 1000);
+                      } else {
+                        setBillError("UPI is not configured for this branch.");
+                      }
+                    }
+                  } else {
+                    void completeBill();
+                  }
                 }}
                 disabled={isSubmittingBill}
                 aria-disabled={isSubmittingBill || !canCompleteBill}
@@ -1434,7 +1678,7 @@ export default function KotPage() {
             aria-labelledby="customer-details-title"
           >
             <div className={styles.customerModalHeader}>
-              {customerConfig.showHistory ? (
+              {false ? (
                 <button
                   type="button"
                   className={`${styles.historyButton} ${

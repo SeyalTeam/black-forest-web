@@ -1,4 +1,5 @@
 import type { CategoriesPageData, ProductsPageData } from "@/lib/order-types";
+import { apiUrl } from "@/lib/api";
 
 const PAGE_CACHE_TTL_MS = 90 * 1000;
 export const CATEGORIES_CACHE_KEY_PREFIX = "blackforest-order-web-categories-v4:";
@@ -26,7 +27,7 @@ function buildProductsDataUrl({
   if (categoryName?.trim()) {
     query.set("categoryName", categoryName.trim());
   }
-  return `/api/products-data?${query.toString()}`;
+  return apiUrl(`/api/products-data?${query.toString()}`);
 }
 
 async function fetchApiPayload<T>(url: string): Promise<T> {
@@ -123,7 +124,7 @@ export async function prefetchCategoriesPageData(branchId: string) {
     const requestKey = `categories:${normalizedBranchId}`;
     const payload = await runDedupedRequest(requestKey, () =>
       fetchApiPayload<CategoriesPageData>(
-        `/api/categories-data?branchId=${encodeURIComponent(normalizedBranchId)}`,
+        apiUrl(`/api/categories-data?branchId=${encodeURIComponent(normalizedBranchId)}`),
       ),
     );
     writeSessionCache(cacheKey, payload);

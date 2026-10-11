@@ -17,7 +17,7 @@ import {
   readTableSession,
   writeTableSession,
   writeBranchSession,
-} from "@/components/branch-session";
+} from "@/components/frontend/branch-session";
 import {
   ChevronRightIcon,
   MicIcon,
@@ -27,10 +27,11 @@ import {
   ProfileIcon,
   SearchIcon,
   VegIcon,
-} from "@/components/menu-icons";
-import styles from "@/components/menu.module.css";
-import { BottomNav } from "@/components/bottom-nav";
-import { productAvatarLabel, useOrder } from "@/components/order-provider";
+} from "@/components/frontend/menu-icons";
+import { apiUrl } from "@/lib/api";
+import styles from "@/components/frontend/menu.module.css";
+import { BottomNav } from "@/components/frontend/bottom-nav";
+import { productAvatarLabel, useOrder } from "@/components/frontend/order-provider";
 import type {
   CategoryCard,
   HomePageData,
@@ -348,7 +349,7 @@ function writeCachedHomeData(branchId: string, data: HomePageData) {
 
 async function fetchHomeDataForBranch(targetBranchId: string) {
   const suffix = targetBranchId ? `?branchId=${encodeURIComponent(targetBranchId)}` : "";
-  const response = await fetch(`/api/home-data${suffix}`);
+  const response = await fetch(apiUrl(`/api/home-data${suffix}`));
   if (!response.ok) {
     throw new Error("Failed to load homepage data");
   }
@@ -402,6 +403,7 @@ export default function HomePageClient({
   const [requestedTableSection, setRequestedTableSection] = useState(
     initialRequestedTableSection,
   );
+  const [searchQuery, setSearchQuery] = useState("");
   const [activeOfferIndex, setActiveOfferIndex] = useState(0);
   const [favoriteProducts, setFavoriteProducts] = useState<FavoriteProductCard[]>(() =>
     (initialHomeData?.ruleSections ?? []).flatMap((section, sectionIndex) =>
@@ -464,7 +466,11 @@ export default function HomePageClient({
 
       setBranchId(resolvedBranchId);
       setBranchNameOverride(restoredBranchName);
-      writeBranchSession(resolvedBranchId, initialHomeData?.branchName || restoredBranchName);
+      writeBranchSession(
+        resolvedBranchId,
+        initialHomeData?.branchName || restoredBranchName,
+        initialHomeData?.upiId || cachedSession?.upiId || "", initialHomeData?.activePaymentMethod || cachedSession?.activePaymentMethod || "upi_direct",
+      );
     };
 
     initializeBranch();
@@ -508,7 +514,7 @@ export default function HomePageClient({
 
       if (cachedData && !isDisposed) {
         setHomeData((current) => (current?.branchId === branchId ? current : cachedData));
-        writeBranchSession(branchId, cachedData.branchName || "");
+        writeBranchSession(branchId, cachedData.branchName || "", cachedData.upiId || "", cachedData.activePaymentMethod || "upi_direct");
       }
 
       if (initialDataForBranch && !isDisposed) {
@@ -516,7 +522,7 @@ export default function HomePageClient({
           current?.branchId === branchId ? current : initialDataForBranch,
         );
         writeCachedHomeData(branchId, initialDataForBranch);
-        writeBranchSession(branchId, initialDataForBranch.branchName || "");
+        writeBranchSession(branchId, initialDataForBranch.branchName || "", initialDataForBranch.upiId || "", initialDataForBranch.activePaymentMethod || "upi_direct");
       }
 
       if (cachedData || initialDataForBranch) {
@@ -529,7 +535,7 @@ export default function HomePageClient({
         const payload = await fetchHomeDataForBranch(branchId);
         if (isDisposed) return;
         setHomeData(payload);
-        writeBranchSession(branchId, payload.branchName || "");
+        writeBranchSession(branchId, payload.branchName || "", payload.upiId || "", payload.activePaymentMethod || "upi_direct");
         writeCachedHomeData(branchId, payload);
         setErrorMessage("");
       } catch (error) {
@@ -574,7 +580,7 @@ export default function HomePageClient({
         const payload = await fetchHomeDataForBranch(branchId);
         if (isDisposed) return;
         setHomeData(payload);
-        writeBranchSession(branchId, payload.branchName || "");
+        writeBranchSession(branchId, payload.branchName || "", payload.upiId || "", payload.activePaymentMethod || "upi_direct");
         writeCachedHomeData(branchId, payload);
         setErrorMessage("");
       } catch {
@@ -611,6 +617,26 @@ export default function HomePageClient({
     () => homeData?.ruleSections ?? [],
     [homeData?.ruleSections],
   );
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const query = searchQuery.toLowerCase();
+    
+    const seen = new Set<string>();
+    const results: Product[] = [];
+    
+    for (const section of orderedSections) {
+      for (const product of section.products) {
+        if (!seen.has(product.id) && product.name.toLowerCase().includes(query)) {
+          seen.add(product.id);
+          results.push(product);
+        }
+      }
+    }
+    
+    return results;
+  }, [searchQuery, orderedSections]);
+
   const baseFavoriteProducts = useMemo<FavoriteProductCard[]>(
     () =>
       orderedSections.flatMap((section, sectionIndex) =>
@@ -831,7 +857,7 @@ export default function HomePageClient({
           orderedProductIds,
         };
 
-        const response = await fetch("/api/favorite-products-order", {
+        const response = await fetch(apiUrl("/api/favorite-products-order"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -884,7 +910,7 @@ export default function HomePageClient({
           orderedCategoryIds,
         };
 
-        const response = await fetch("/api/favorite-categories-order", {
+        const response = await fetch(apiUrl("/api/favorite-categories-order"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1183,11 +1209,45 @@ export default function HomePageClient({
             </div>
           ) : (
             <>
-              <button type="button" className={styles.heroSearch}>
+              <div className={styles.heroSearch}>
                 <SearchIcon className={styles.inlineIconLarge} />
-                <span>Search for &quot;Pizza&quot;</span>
+                <input
+                  type="text"
+                  placeholder='Search for "Pizza"'
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    border: "none",
+                    outline: "none",
+                    background: "transparent",
+                    color: "inherit",
+                    fontSize: "inherit",
+                    width: "100%",
+                  }}
+                />
+                {searchQuery && searchResults.length > 0 && (
+                  <div className={styles.searchResults}>
+                    {searchResults.map((product) => {
+                      const appliedPriceProduct = applySectionPrice(product, requestedTableSection);
+                      return (
+                        <div key={product.id} className={styles.searchResultItem} onClick={() => { addItem(appliedPriceProduct); setSearchQuery(""); }}>
+                          <div className={styles.searchResultInfo}>
+                            <div className={styles.searchResultName}>{product.name}</div>
+                            <div className={styles.searchResultPrice}>₹{appliedPriceProduct.price}</div>
+                          </div>
+                          <button className={styles.searchResultAdd} onClick={(e) => { e.stopPropagation(); addItem(appliedPriceProduct); setSearchQuery(""); }}>+</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {searchQuery && searchResults.length === 0 && (
+                  <div className={styles.searchResults}>
+                    <div style={{ padding: '12px', textAlign: 'center', color: '#8c8c94' }}>No products found</div>
+                  </div>
+                )}
                 <MicIcon className={styles.inlineIconLarge} />
-              </button>
+              </div>
 
               {activeOffer ? (
                 <div className={styles.heroContent}>
@@ -1357,8 +1417,14 @@ export default function HomePageClient({
               </div>
             ) : null}
             <div className={styles.sectionGrid}>
-              {favoriteProducts.map(({ key, product: rawProduct }) => {
-                const product = applySectionPrice(rawProduct, requestedTableSection);
+              {[...favoriteProducts]
+                .sort((a, b) => {
+                  const aStock = a.product.isOutOfStock ? 1 : 0;
+                  const bStock = b.product.isOutOfStock ? 1 : 0;
+                  return aStock - bStock;
+                })
+                .map(({ key, product: rawProduct }) => {
+                  const product = applySectionPrice(rawProduct, requestedTableSection);
                 const quantity = cartItems.find((item) => item.id === product.id)?.quantity ?? 0;
                 const isOutOfStock = product.isOutOfStock;
                 const preparationLabel = formatPreparationLabel(product.preparationTime);

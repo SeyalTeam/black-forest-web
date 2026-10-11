@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope, Playfair_Display } from "next/font/google";
-import { OrderProvider } from "@/components/order-provider";
-import "./globals.css";
+import { OrderProvider } from "@/components/frontend/order-provider";
+import "./styles.css";
 
 const manrope = Manrope({
   variable: "--font-manrope",

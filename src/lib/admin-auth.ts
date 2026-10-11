@@ -1,4 +1,4 @@
-const API_BASE = "https://blackforest2.vseyal.com/api";
+import { apiUrl } from "./api";
 
 type DynamicMap = Record<string, unknown>;
 
@@ -23,7 +23,12 @@ function normalizeRole(value: string) {
 
 function isSuperAdminText(value: string) {
   const normalized = normalizeRole(value.trim());
-  return normalized === "superadmin" || normalized.includes("superadmin");
+  return (
+    normalized === "superadmin" ||
+    normalized.includes("superadmin") ||
+    normalized === "admin" ||
+    normalized === "account"
+  );
 }
 
 export function hasSuperAdminAccess(user: unknown): boolean {
@@ -105,7 +110,7 @@ export async function fetchCurrentUser(apiToken: string) {
     };
   }
 
-  const response = await fetch(`${API_BASE}/users/me?depth=0`, {
+  const response = await fetch(apiUrl("/api/users/me?depth=0"), {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -143,5 +148,3 @@ export async function fetchCurrentUser(apiToken: string) {
     message: "",
   };
 }
-
-export { API_BASE };

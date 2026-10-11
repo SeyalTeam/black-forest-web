@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
-import CategoriesPageClient from "@/components/categories-page-client";
-import { COOKIE_BRANCH_ID_KEY } from "@/components/branch-session";
-import { getCategoriesPageData } from "@/lib/home-data";
+import CategoriesPageClient from "@/components/frontend/categories-page-client";
+import { COOKIE_BRANCH_ID_KEY } from "@/components/frontend/branch-session";
+import { apiUrl } from "@/lib/api";
+import type { CategoriesPageData } from "@/lib/order-types";
 
 type SearchParamValue = string | string[] | undefined;
 
@@ -29,6 +30,18 @@ function readCookieValue(value?: string) {
   }
 }
 
+async function fetchCategoriesPageData(branchId: string): Promise<CategoriesPageData | null> {
+  try {
+    const url = apiUrl(`/api/categories-data${branchId ? `?branchId=${encodeURIComponent(branchId)}` : ""}`);
+    const response = await fetch(url, { next: { revalidate: 60 } });
+    if (!response.ok) return null;
+    return (await response.json()) as CategoriesPageData;
+  } catch (error) {
+    console.warn("[CategoriesPage] Failed to fetch initialPageData during SSR:", error);
+    return null;
+  }
+}
+
 export default async function CategoriesPage({ searchParams }: PageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const cookieStore = await cookies();
@@ -36,7 +49,7 @@ export default async function CategoriesPage({ searchParams }: PageProps) {
   const requestedBranchId = readSearchParam(resolvedSearchParams, "branchId");
   const cookieBranchId = readCookieValue(cookieStore.get(COOKIE_BRANCH_ID_KEY)?.value);
   const initialBranchId = requestedBranchId || cookieBranchId || "";
-  const initialPageData = initialBranchId ? await getCategoriesPageData(initialBranchId) : null;
+  const initialPageData = initialBranchId ? await fetchCategoriesPageData(initialBranchId) : null;
 
   return (
     <CategoriesPageClient

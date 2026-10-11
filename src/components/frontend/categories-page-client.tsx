@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { readBranchSession, writeBranchSession } from "@/components/branch-session";
-import { BottomNav } from "@/components/bottom-nav";
-import { BackIcon, SearchIcon } from "@/components/menu-icons";
-import styles from "@/components/menu.module.css";
+import { readBranchSession, writeBranchSession } from "@/components/frontend/branch-session";
+import { BottomNav } from "@/components/frontend/bottom-nav";
+import { BackIcon, SearchIcon } from "@/components/frontend/menu-icons";
+import styles from "@/components/frontend/menu.module.css";
 import type { CategoriesPageData } from "@/lib/order-types";
+import { apiUrl } from "@/lib/api";
 import {
   getCategoriesCacheKey,
   prefetchProductsPageData,
@@ -58,7 +59,7 @@ export default function CategoriesPageClient({
       setBranchId(resolvedBranchId);
       writeBranchSession(
         resolvedBranchId,
-        initialBranchName || session?.branchName || "",
+        initialBranchName || session?.branchName || "", session?.upiId || "", session?.activePaymentMethod || "upi_direct",
       );
     });
 
@@ -94,7 +95,7 @@ export default function CategoriesPageClient({
 
       try {
         const response = await fetch(
-          `/api/categories-data?branchId=${encodeURIComponent(branchId)}`,
+          apiUrl(`/api/categories-data?branchId=${encodeURIComponent(branchId)}`),
         );
         if (!response.ok) {
           throw new Error("Failed to load categories");

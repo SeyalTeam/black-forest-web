@@ -254,6 +254,7 @@
 }
 
 .heroSearch {
+  position: relative;
   margin-top: 18px;
   display: flex;
   align-items: center;
@@ -1565,4 +1566,70 @@
     width: 84px;
     border-radius: 22px;
   }
+}
+
+.searchResults {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.searchResultItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f9f9f9;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.searchResultItem:hover {
+  background: #f1f1f1;
+}
+
+.searchResultInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.searchResultName {
+  font-size: 14px;
+  font-weight: 800;
+  color: #1f2430;
+}
+
+.searchResultPrice {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ef4f5f;
+}
+
+.searchResultAdd {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ef4f5f;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 18px;
+  border: none;
+  cursor: pointer;
 }
