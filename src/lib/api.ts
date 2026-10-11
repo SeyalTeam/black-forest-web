@@ -4,7 +4,7 @@
  */
 export const API_URL = (
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) ||
-  'http://localhost:3000'
+  'https://blackforest1.vseyal.com'
 ).replace(/\/+$/, '');
 
 export function apiUrl(path: string): string {
