@@ -42,9 +42,20 @@ function readPersistedState(): PersistedState {
 
   try {
     const parsed = JSON.parse(raw) as PersistedState;
+    const cartItems = parsed.cartItems ?? [];
+    // Only retain cooking requests for items currently in cart
+    const validIds = new Set(cartItems.map((item) => item.id));
+    const cookingRequests: Record<string, string> = {};
+    if (parsed.cookingRequests && typeof parsed.cookingRequests === "object") {
+      for (const [id, note] of Object.entries(parsed.cookingRequests)) {
+        if (validIds.has(id) && typeof note === "string" && note.trim()) {
+          cookingRequests[id] = note.trim();
+        }
+      }
+    }
     return {
-      cartItems: parsed.cartItems ?? [],
-      cookingRequests: parsed.cookingRequests ?? {},
+      cartItems,
+      cookingRequests,
     };
   } catch {
     window.localStorage.removeItem(STORAGE_KEY);
@@ -82,6 +93,13 @@ export function OrderProvider({ children }: { children: ReactNode }) {
       setCartItems((current) => {
         const existing = current.find((item) => item.id === product.id);
         if (!existing) {
+          // Freshly added item: clear any stale cooking request from prior order
+          setCookingRequests((prev) => {
+            if (!(product.id in prev)) return prev;
+            const next = { ...prev };
+            delete next[product.id];
+            return next;
+          });
           return [...current, { ...product, quantity: 1 }];
         }
 
@@ -92,30 +110,35 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     };
 
     const decreaseItem = (productId: string) => {
-      setCartItems((current) =>
-        current
+      setCartItems((current) => {
+        const updated = current
           .map((item) =>
             item.id === productId ? { ...item, quantity: item.quantity - 1 } : item,
           )
-          .filter((item) => item.quantity > 0),
-      );
-      setCookingRequests((current) => {
-        const hasMatchingItem = cartItems.some(
-          (item) => item.id === productId && item.quantity > 1,
-        );
-        if (hasMatchingItem || !(productId in current)) {
-          return current;
+          .filter((item) => item.quantity > 0);
+
+        const stillInCart = updated.some((item) => item.id === productId);
+        if (!stillInCart) {
+          setCookingRequests((prev) => {
+            if (!(productId in prev)) return prev;
+            const next = { ...prev };
+            delete next[productId];
+            return next;
+          });
         }
 
-        const next = { ...current };
-        delete next[productId];
-        return next;
+        return updated;
       });
     };
 
     const clearCart = () => {
       setCartItems([]);
       setCookingRequests({});
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.removeItem(STORAGE_KEY);
+        } catch {}
+      }
     };
 
     const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
