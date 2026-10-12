@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope, Playfair_Display } from "next/font/google";
 import { OrderProvider } from "@/components/frontend/order-provider";
+import { PreparedNotificationBar } from "@/components/frontend/prepared-notification-bar";
 import "./styles.css";
 
 const manrope = Manrope({
@@ -27,7 +28,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${manrope.variable} ${playfair.variable}`}>
-        <OrderProvider>{children}</OrderProvider>
+        <OrderProvider>
+          {children}
+          <PreparedNotificationBar />
+        </OrderProvider>
       </body>
     </html>
   );
