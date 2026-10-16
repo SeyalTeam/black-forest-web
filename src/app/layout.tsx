@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Manrope, Playfair_Display } from "next/font/google";
 import { OrderProvider } from "@/components/frontend/order-provider";
 import { PreparedNotificationBar } from "@/components/frontend/prepared-notification-bar";
-import { FloatingReviewBar } from "@/components/frontend/floating-review-bar";
 import "./styles.css";
 
 const manrope = Manrope({
@@ -32,7 +31,6 @@ export default function RootLayout({
         <OrderProvider>
           {children}
           <PreparedNotificationBar />
-          <FloatingReviewBar />
         </OrderProvider>
       </body>
     </html>

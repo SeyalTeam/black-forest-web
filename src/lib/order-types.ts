@@ -95,13 +95,11 @@ export type BillSummaryItem = {
   status: string;
   isVeg: boolean;
   gst?: string;
-  productId?: string;
   preparationTime: number | null;
   preparationTimeSource: "billing-item" | "product-default" | "none";
   preparationTimeUpdatedAt: string;
   orderedAt: string;
   preparedAt: string;
-  deliveredAt?: string;
 };
 
 export type BillSummaryData = {
