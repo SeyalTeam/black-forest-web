@@ -1,12 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   readActiveBillSession,
   readBranchSession,
   readTableSession,
 } from "@/components/frontend/branch-session";
-import { productAvatarLabel, useOrder } from "@/components/frontend/order-provider";
+import {
+  ChatBubbleIcon,
+  CloseIcon,
+  PaperPlaneIcon,
+} from "@/components/frontend/menu-icons";
 import type { BillSummaryData, BillSummaryItem } from "@/lib/order-types";
 import { apiUrl } from "@/lib/api";
 import styles from "./floating-review-bar.module.css";
@@ -15,12 +20,13 @@ import styles from "./floating-review-bar.module.css";
 const REVIEW_DELAY_MS = 5 * 60 * 1000;
 const POLL_INTERVAL_MS = 5_000;
 const REVIEWED_STORAGE_PREFIX = "blackforest-reviewed-products:";
+const SKIPPED_STORAGE_PREFIX = "blackforest-skipped-reviews:";
 const DELIVERY_TIME_STORAGE_PREFIX = "blackforest-delivered-time:";
 
-function getReviewedKeys(billId: string): Set<string> {
+function getStorageSet(prefix: string, billId: string): Set<string> {
   if (typeof window === "undefined" || !billId) return new Set();
   try {
-    const raw = window.sessionStorage.getItem(`${REVIEWED_STORAGE_PREFIX}${billId}`);
+    const raw = window.sessionStorage.getItem(`${prefix}${billId}`);
     if (!raw) return new Set();
     const parsed = JSON.parse(raw);
     return new Set(Array.isArray(parsed) ? parsed : []);
@@ -29,11 +35,11 @@ function getReviewedKeys(billId: string): Set<string> {
   }
 }
 
-function saveReviewedKeys(billId: string, set: Set<string>) {
+function saveStorageSet(prefix: string, billId: string, set: Set<string>) {
   if (typeof window === "undefined" || !billId) return;
   try {
     window.sessionStorage.setItem(
-      `${REVIEWED_STORAGE_PREFIX}${billId}`,
+      `${prefix}${billId}`,
       JSON.stringify(Array.from(set)),
     );
   } catch {}
@@ -110,23 +116,25 @@ type ReviewQueueItem = {
 };
 
 export function FloatingReviewBar() {
-  const { totalItems } = useOrder();
-
   const [queue, setQueue] = useState<ReviewQueueItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
-  const [selectedRating, setSelectedRating] = useState<number>(0);
-  const [feedbackText, setFeedbackText] = useState<string>("");
-  const [errorMessage, setErrorMessage] = useState<string>("");
+
+  // State maps per product
+  const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
+
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showSuccessCard, setShowSuccessCard] = useState<boolean>(false);
   const [isExiting, setIsExiting] = useState<boolean>(false);
+  const [isDismissedSession, setIsDismissedSession] = useState<boolean>(false);
 
   const reviewedKeysRef = useRef<Set<string>>(new Set());
+  const skippedKeysRef = useRef<Set<string>>(new Set());
   const activeBillIdRef = useRef<string>("");
-  const itemsCacheRef = useRef<BillSummaryItem[]>([]);
-  const billCreatedAtRef = useRef<string>("");
 
   const currentItem = queue[currentIndex] ?? null;
+  const currentRating = currentItem ? ratings[currentItem.id] || 0 : 0;
+  const currentFeedback = currentItem ? feedbacks[currentItem.id] || "" : "";
 
   // Sync reviewed set from backend once when bill is discovered
   const syncBackendReviews = useCallback(async (billId: string) => {
@@ -148,7 +156,7 @@ export function FloatingReviewBar() {
             reviewedKeysRef.current.add(prodId);
           }
         }
-        saveReviewedKeys(billId, reviewedKeysRef.current);
+        saveStorageSet(REVIEWED_STORAGE_PREFIX, billId, reviewedKeysRef.current);
       }
     } catch {}
   }, []);
@@ -158,7 +166,7 @@ export function FloatingReviewBar() {
     let isDisposed = false;
 
     const checkDeliveredItems = async () => {
-      if (isDisposed) return;
+      if (isDisposed || isDismissedSession) return;
 
       const activeBill = readActiveBillSession();
       const branch = readBranchSession();
@@ -175,7 +183,8 @@ export function FloatingReviewBar() {
 
       if (billId && billId !== activeBillIdRef.current) {
         activeBillIdRef.current = billId;
-        reviewedKeysRef.current = getReviewedKeys(billId);
+        reviewedKeysRef.current = getStorageSet(REVIEWED_STORAGE_PREFIX, billId);
+        skippedKeysRef.current = getStorageSet(SKIPPED_STORAGE_PREFIX, billId);
         void syncBackendReviews(billId);
       }
 
@@ -202,12 +211,10 @@ export function FloatingReviewBar() {
         const resolvedBillId = data.billId || billId;
         if (resolvedBillId && resolvedBillId !== activeBillIdRef.current) {
           activeBillIdRef.current = resolvedBillId;
-          reviewedKeysRef.current = getReviewedKeys(resolvedBillId);
+          reviewedKeysRef.current = getStorageSet(REVIEWED_STORAGE_PREFIX, resolvedBillId);
+          skippedKeysRef.current = getStorageSet(SKIPPED_STORAGE_PREFIX, resolvedBillId);
           void syncBackendReviews(resolvedBillId);
         }
-
-        itemsCacheRef.current = data.items;
-        billCreatedAtRef.current = data.createdAt || "";
 
         const now = Date.now();
         const eligibleQueue: ReviewQueueItem[] = [];
@@ -221,8 +228,12 @@ export function FloatingReviewBar() {
           const prodId = item.productId || item.id;
           if (!prodId) continue;
 
-          // If already reviewed, skip!
-          if (reviewedKeysRef.current.has(prodId) || reviewedKeysRef.current.has(item.id)) {
+          // If already reviewed or skipped for this session, ignore
+          if (
+            reviewedKeysRef.current.has(prodId) ||
+            reviewedKeysRef.current.has(item.id) ||
+            skippedKeysRef.current.has(item.id)
+          ) {
             continue;
           }
 
@@ -250,9 +261,8 @@ export function FloatingReviewBar() {
 
         // Update queue with eligible unreviewed products
         setQueue((prevQueue) => {
-          // If queue already has items being reviewed, retain order and append newly eligible
-          const prevIds = new Set(prevQueue.map((q) => q.productId));
-          const newItems = eligibleQueue.filter((q) => !prevIds.has(q.productId));
+          const prevIds = new Set(prevQueue.map((q) => q.id));
+          const newItems = eligibleQueue.filter((q) => !prevIds.has(q.id));
           if (prevQueue.length === 0 && newItems.length === 0) return prevQueue;
           return [...prevQueue, ...newItems];
         });
@@ -271,25 +281,64 @@ export function FloatingReviewBar() {
       isDisposed = true;
       window.clearInterval(intervalId);
     };
-  }, [syncBackendReviews]);
+  }, [syncBackendReviews, isDismissedSession]);
 
-  // Submit compulsory rating & feedback
-  const handleSubmitReview = async () => {
+  // Navigate between items (Back & Next)
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (currentIndex > 0) {
+      setCurrentIndex((prev) => prev - 1);
+    }
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (currentIndex < queue.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
+    }
+  };
+
+  // Skip current product
+  const handleSkip = () => {
     if (!currentItem) return;
 
-    if (!selectedRating || selectedRating < 1) {
-      setErrorMessage("Please select a star rating (1 to 5 stars).");
-      return;
-    }
+    skippedKeysRef.current.add(currentItem.id);
+    saveStorageSet(SKIPPED_STORAGE_PREFIX, currentItem.billId, skippedKeysRef.current);
 
-    const trimmedFeedback = feedbackText.trim();
-    if (!trimmedFeedback) {
-      setErrorMessage("Please write your review before submitting.");
-      return;
+    // If there are more items to review, advance
+    const remaining = queue.filter((_, idx) => idx !== currentIndex);
+    if (remaining.length > 0) {
+      setQueue(remaining);
+      if (currentIndex >= remaining.length) {
+        setCurrentIndex(remaining.length - 1);
+      }
+    } else {
+      // Last item skipped: close modal
+      setIsExiting(true);
+      window.setTimeout(() => {
+        setQueue([]);
+        setCurrentIndex(0);
+        setIsExiting(false);
+      }, 250);
     }
+  };
+
+  // Close completely for session
+  const handleClose = () => {
+    setIsDismissedSession(true);
+    setIsExiting(true);
+    window.setTimeout(() => {
+      setQueue([]);
+      setCurrentIndex(0);
+      setIsExiting(false);
+    }, 250);
+  };
+
+  // Submit compulsory star rating with optional feedback
+  const handleSubmitReview = async () => {
+    if (!currentItem || currentRating < 1) return;
 
     setIsSubmitting(true);
-    setErrorMessage("");
 
     try {
       const activeBill = readActiveBillSession();
@@ -307,8 +356,8 @@ export function FloatingReviewBar() {
         body: JSON.stringify({
           bill: currentItem.billId,
           product: currentItem.productId,
-          rating: selectedRating,
-          feedback: trimmedFeedback,
+          rating: currentRating,
+          feedback: currentFeedback.trim(), // Optional text!
           customerName: customerName || undefined,
           customerPhone: customerPhone || undefined,
           branch: branchId || undefined,
@@ -322,129 +371,224 @@ export function FloatingReviewBar() {
       // Mark this product as reviewed
       reviewedKeysRef.current.add(currentItem.productId);
       reviewedKeysRef.current.add(currentItem.id);
-      saveReviewedKeys(currentItem.billId, reviewedKeysRef.current);
+      saveStorageSet(REVIEWED_STORAGE_PREFIX, currentItem.billId, reviewedKeysRef.current);
 
-      // Show success celebration
+      // Show brief celebratory confirmation
       setShowSuccessCard(true);
 
       window.setTimeout(() => {
         setShowSuccessCard(false);
-        setSelectedRating(0);
-        setFeedbackText("");
-        setErrorMessage("");
 
-        // Advance to next product in queue
-        if (currentIndex + 1 < queue.length) {
-          setCurrentIndex((prev) => prev + 1);
+        // Remove reviewed item from queue
+        const remaining = queue.filter((_, idx) => idx !== currentIndex);
+        if (remaining.length > 0) {
+          setQueue(remaining);
+          if (currentIndex >= remaining.length) {
+            setCurrentIndex(remaining.length - 1);
+          }
         } else {
-          // All done! Smoothly slide down and clear queue
+          // All done! Smoothly slide down
           setIsExiting(true);
           window.setTimeout(() => {
             setQueue([]);
             setCurrentIndex(0);
             setIsExiting(false);
-          }, 300);
+          }, 250);
         }
-      }, 1400);
+      }, 1200);
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Submission failed. Please try again.",
-      );
+      console.error("[FloatingReviewBar] submit error", err);
+      alert("Submission failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (!currentItem) {
+  if (!currentItem || isDismissedSession) {
     return null;
   }
 
-  const isAboveCart = totalItems > 0;
-  const itemInitials = productAvatarLabel(currentItem.name);
   const totalInQueue = queue.length;
   const currentStep = currentIndex + 1;
+  const canGoPrev = currentIndex > 0;
+  const canGoNext = currentIndex < totalInQueue - 1;
 
   return (
-    <div
-      className={`${styles.reviewContainer} ${isAboveCart ? styles.reviewContainerAboveCart : ""} ${
-        isExiting ? styles.reviewContainerExiting : ""
-      }`}
-      role="region"
-      aria-label="Product Review"
-    >
-      {showSuccessCard ? (
-        <div className={styles.successCard}>
-          <div className={styles.successStar}>⭐</div>
-          <strong>Thank you for reviewing!</strong>
-          <p>Your feedback helps our chefs serve you best.</p>
-        </div>
-      ) : (
-        <div className={styles.reviewInner}>
-          <div className={styles.reviewHeader}>
-            <div className={styles.productLead}>
-              <div className={styles.avatarChip}>{itemInitials || "★"}</div>
-              <div className={styles.productInfo}>
-                <strong>How was the {currentItem.name}?</strong>
-                <p>Delivered 5 mins ago • Please share your review</p>
+    <>
+      {/* Dimmed Backdrop */}
+      <div className={styles.overlay} onClick={handleClose} />
+
+      {/* Main Review Card Modal */}
+      <div
+        className={`${styles.cardContainer} ${
+          isExiting ? styles.cardContainerExiting : ""
+        }`}
+        role="dialog"
+        aria-labelledby="review-dialog-title"
+      >
+        {showSuccessCard ? (
+          <div className={styles.successCard}>
+            <div className={styles.successIcon}>⭐</div>
+            <strong>Thank you for reviewing!</strong>
+            <p>Your feedback helps our chefs serve you the best.</p>
+          </div>
+        ) : (
+          <div className={styles.cardInner}>
+            {/* 3D Chef Character with thumbs-up popping out */}
+            <div className={styles.chefWrapper}>
+              <Image
+                src="/chef-clean.png"
+                alt="Chef"
+                width={125}
+                height={165}
+                className={styles.chefImage}
+                priority
+              />
+              <div className={styles.sparkles}>✨</div>
+            </div>
+
+            {/* Close Button */}
+            <button
+              type="button"
+              className={styles.closeButton}
+              onClick={handleClose}
+              aria-label="Close review"
+            >
+              <CloseIcon className={styles.closeIcon} />
+            </button>
+
+            {/* Right Top Content next to Chef */}
+            <div className={styles.topContent}>
+              <div className={styles.topRow}>
+                {/* 1 of 3 Pagination Badge with Back and Next */}
+                <div className={styles.navBadge}>
+                  <button
+                    type="button"
+                    onClick={handlePrev}
+                    disabled={!canGoPrev}
+                    className={styles.navArrowBtn}
+                    aria-label="Previous order item"
+                  >
+                    ‹
+                  </button>
+                  <span className={styles.navText}>
+                    {currentStep} of {totalInQueue}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    disabled={!canGoNext}
+                    className={styles.navArrowBtn}
+                    aria-label="Next order item"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+
+              {/* Title & Product Name */}
+              <div className={styles.titleArea}>
+                <h3 className={styles.titleSubtitle}>How was your</h3>
+                <h2 id="review-dialog-title" className={styles.titleProductName}>
+                  {currentItem.name}?
+                </h2>
+                {/* Hand-drawn yellow underline SVG */}
+                <svg
+                  className={styles.underlineAccent}
+                  viewBox="0 0 140 8"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M3 5.5C40 2.2 100 2.2 137 5.5"
+                    stroke="#f59e0b"
+                    strokeWidth="3.2"
+                    strokeLinecap="round"
+                  />
+                </svg>
               </div>
             </div>
 
-            {totalInQueue > 1 ? (
-              <span className={styles.queueBadge}>
-                {currentStep} of {totalInQueue}
-              </span>
-            ) : null}
-          </div>
+            {/* 5 Big Cartoon Gold Stars */}
+            <div className={styles.starRow}>
+              {[1, 2, 3, 4, 5].map((star) => {
+                const isActive = star <= currentRating;
+                return (
+                  <button
+                    key={star}
+                    type="button"
+                    className={`${styles.starBtn} ${isActive ? styles.starActive : ""}`}
+                    onClick={() => {
+                      setRatings((prev) => ({ ...prev, [currentItem.id]: star }));
+                    }}
+                    aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
+                  >
+                    <svg
+                      className={styles.starSvg}
+                      viewBox="0 0 32 32"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <defs>
+                        <linearGradient id={`starGrad-${star}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" stopColor="#fef08a" />
+                          <stop offset="50%" stopColor="#facc15" />
+                          <stop offset="100%" stopColor="#f59e0b" />
+                        </linearGradient>
+                      </defs>
+                      <path
+                        d="M16 2.8l3.95 8.01 8.84 1.28-6.4 6.24 1.51 8.8-7.9-4.16-7.9 4.16 1.51-8.8-6.4-6.24 8.84-1.28L16 2.8z"
+                        fill={isActive ? `url(#starGrad-${star})` : "#f3f4f6"}
+                        stroke={isActive ? "#92400e" : "#d1d5db"}
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
 
-          {/* Compulsory 5-Star Rating */}
-          <div className={styles.starRatingRow}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                type="button"
-                className={`${styles.starButton} ${
-                  star <= selectedRating ? styles.starButtonActive : ""
-                }`}
-                onClick={() => {
-                  setSelectedRating(star);
-                  if (errorMessage.includes("star")) setErrorMessage("");
+            {/* Feedback Box (Optional text) */}
+            <div className={styles.inputWrap}>
+              <ChatBubbleIcon className={styles.chatIcon} />
+              <input
+                type="text"
+                className={styles.feedbackInput}
+                placeholder="Tell us what you liked or how we can improve... (Optional)"
+                value={currentFeedback}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFeedbacks((prev) => ({ ...prev, [currentItem.id]: val }));
                 }}
-                aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
+              />
+            </div>
+
+            {/* Bottom Actions Row */}
+            <div className={styles.actionsRow}>
+              <button
+                type="button"
+                className={styles.submitBtn}
+                onClick={() => {
+                  void handleSubmitReview();
+                }}
+                disabled={currentRating < 1 || isSubmitting}
               >
-                ★
+                <PaperPlaneIcon className={styles.submitIcon} />
+                <span>{isSubmitting ? "Submitting..." : "Submit Review"}</span>
               </button>
-            ))}
-          </div>
 
-          {/* Compulsory Review Typing Box */}
-          <div className={styles.feedbackAreaWrap}>
-            <textarea
-              className={styles.feedbackInput}
-              rows={2}
-              placeholder="Tell us what you liked or how we can improve (compulsory)..."
-              value={feedbackText}
-              onChange={(e) => {
-                setFeedbackText(e.target.value);
-                if (errorMessage.includes("write")) setErrorMessage("");
-              }}
-            />
-            {errorMessage ? (
-              <div className={styles.errorBanner}>{errorMessage}</div>
-            ) : null}
+              <button
+                type="button"
+                className={styles.skipBtn}
+                onClick={handleSkip}
+              >
+                Skip for now
+              </button>
+            </div>
           </div>
-
-          <button
-            type="button"
-            className={styles.reviewSubmitBtn}
-            onClick={() => {
-              void handleSubmitReview();
-            }}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Submitting Review..." : "Submit Review"}
-          </button>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }
