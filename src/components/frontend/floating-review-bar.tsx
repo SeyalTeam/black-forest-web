@@ -439,8 +439,8 @@ export function FloatingReviewBar() {
               <Image
                 src="/chef-clean.png"
                 alt="Chef"
-                width={125}
-                height={165}
+                width={140}
+                height={133}
                 className={styles.chefImage}
                 priority
               />

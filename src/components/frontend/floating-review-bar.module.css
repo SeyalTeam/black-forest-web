@@ -71,10 +71,10 @@
 /* Chef floating on top left */
 .chefWrapper {
   position: absolute;
-  left: 10px;
-  top: -46px;
-  width: 125px;
-  height: 165px;
+  left: 8px;
+  top: -42px;
+  width: 140px;
+  height: 135px;
   pointer-events: none;
   z-index: 10;
   user-select: none;
@@ -89,8 +89,8 @@
 
 .sparkles {
   position: absolute;
-  top: 48px;
-  right: -6px;
+  top: 32px;
+  right: -2px;
   color: #f59e0b;
   font-size: 16px;
   animation: pulseSparkle 1.8s ease-in-out infinite;
@@ -109,7 +109,7 @@
 
 /* Right Content next to Chef */
 .topContent {
-  margin-left: 118px;
+  margin-left: 142px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -411,4 +411,17 @@
   font-size: 13px;
   color: #6b7280;
   margin: 0;
+}
+
+@media (max-width: 420px) {
+  .chefWrapper {
+    width: 118px;
+    height: 114px;
+    top: -34px;
+    left: 4px;
+  }
+
+  .topContent {
+    margin-left: 122px;
+  }
 }
