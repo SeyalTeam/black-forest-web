@@ -5,7 +5,7 @@
 
 export const DEFAULT_API_URL = (
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) ||
-  'https://blackforest1.vseyal.com'
+  'https://blackforest-api.vseyal.com'
 ).replace(/\/+$/, '');
 
 /**
